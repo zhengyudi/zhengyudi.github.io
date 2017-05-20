@@ -7,7 +7,7 @@ date: 2017-05-20 12:19:48
   
 # Short Bio
 
-I am a research assistant in the [Faculty of Informatics, University of Lugano][1], under the supervision of [Prof. Walter Binder][2]. My research interests include program analysis and dynamic compilation.
+I am a research assistant in the [Faculty of Informatics, University of Lugano][1], under the supervision of [Prof. Walter Binder][2]. My research interests include program analysis, virtual machine, and dynamic compilation.
 
 ----
 
