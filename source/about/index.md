@@ -19,6 +19,10 @@ I am a research assistant in the [Faculty of Informatics, University of Lugano][
 * Danilo Ansaloni, Stephen Kell, **Yudi Zheng**, Lubomir Bulej, Walter Binder, and Petr Tuma. *Enabling Modularity and Re-use in Dynamic Program Analysis Tools for the Java Virtual Machine*. ECOOP 2013.
 * Lukas Marek, Alex Villazon, **Yudi Zheng**, Danilo Ansoloni, Walter Binder and Zhengwei Qi. *DiSL: a Domain-Specific Language for Bytecode Instrumentation*. AOSD 2012.
 
+Check [DBLP][3] for the complete list.
+
+
 [1]: http://www.inf.usi.ch/
 [2]: http://www.inf.usi.ch/faculty/binder/
+[3]: http://dblp.uni-trier.de/pers/hd/z/Zheng:Yudi
 
