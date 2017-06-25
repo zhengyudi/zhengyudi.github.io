@@ -7,7 +7,9 @@ date: 2017-05-20 12:19:48
   
 # Short Bio
 
-I am a research assistant in the [Faculty of Informatics, University of Lugano][1], under the supervision of [Prof. Walter Binder][2]. My research interests include program analysis, virtual machine, and dynamic compilation.
+I am a senior researcher at Oracle Labs, working on the [Graal project][4]. My research interests include program analysis, virtual machine, and dynamic compilation.
+
+Previously, I was a research assistant in the [Faculty of Informatics, University of Lugano][1], under the supervision of [Prof. Walter Binder][2]. I received a doctoral degree in May 2017.
 
 ----
 
@@ -29,6 +31,7 @@ Check [DBLP][3] for the complete publication list.
 [1]: http://www.inf.usi.ch/
 [2]: http://www.inf.usi.ch/faculty/binder/
 [3]: http://dblp.uni-trier.de/pers/hd/z/Zheng:Yudi
+[4]: https://github.com/graalvm/
 
 [11]: https://doi.org/10.4230/LIPIcs.ECOOP.2017.92
 [12]: https://doi.org/10.1007/978-3-319-46982-9_14
