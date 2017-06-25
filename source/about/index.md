@@ -33,7 +33,7 @@ Check [DBLP][3] for the complete publication list.
 [3]: http://dblp.uni-trier.de/pers/hd/z/Zheng:Yudi
 [4]: https://github.com/graalvm/
 
-[11]: https://doi.org/10.4230/LIPIcs.ECOOP.2017.92
+[11]: https://doi.org/10.4230/LIPIcs.ECOOP.2017.30
 [12]: https://doi.org/10.1007/978-3-319-46982-9_14
 [13]: https://doi.org/10.1109/SANER.2016.70
 [14]: https://doi.org/10.1145/2814270.2814281
