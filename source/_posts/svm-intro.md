@@ -1,5 +1,5 @@
 ---
-title: Substrate VM
+title: Substrate VM 笔记
 date: 2017-12-25 00:00:00
 tags: SVM
 ---
@@ -147,6 +147,10 @@ $ svmbuild/ruby -Xhome=../../truffleruby
   编译TruffleRuby的指令较为复杂，因此我们提供了``mx image -ruby``的封装。它将在包含``graal``的git repo的路径下寻找``truffleruby``的repo，编译其通过``mx build``生成的jar包。
 
 ----
+
+# SVM Internals
+
+To be continued..
 
 [0]: https://github.com/graalvm/graal/tree/master/substratevm
 [1]: http://www.oracle.com/technetwork/oracle-labs/program-languages/overview/index.html
