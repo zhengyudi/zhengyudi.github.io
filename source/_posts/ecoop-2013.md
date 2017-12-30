@@ -1,6 +1,7 @@
 ---
 title: "[ECOOP '13] Enabling Modularity and Re-use in Dynamic Program Analysis Tools for the Java Virtual Machine"
 date: 2013-07-01 00:00:00
+comments: false
 tags: publication
 ---
 

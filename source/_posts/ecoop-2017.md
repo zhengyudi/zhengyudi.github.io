@@ -1,6 +1,7 @@
 ---
 title: "[ECOOP '17] An Empirical Study on Deoptimization in the Graal Compiler"
 date: 2017-05-17 00:00:00
+comments: false
 tags: publication
 ---
 by **Yudi Zheng**, Lubomir Bulej, and Walter Binder.

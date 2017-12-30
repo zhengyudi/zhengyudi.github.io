@@ -1,6 +1,7 @@
 ---
 title: "[TOOLS '12] Turbo DiSL: Partial Evaluation for High-Level Bytecode Instrumentation"
 date: 2012-05-29 00:00:00
+comments: false
 tags: publication
 ---
 

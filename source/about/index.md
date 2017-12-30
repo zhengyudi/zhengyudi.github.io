@@ -1,10 +1,11 @@
 ---
 title: About Me
 date: 2017-05-20 12:19:48
+comments: false
 ---
 
 ----
-  
+
 # Short Bio
 
 I am a senior researcher at Oracle Labs, working on the [Graal project][4]. My research interests include program analysis, virtual machine, and dynamic compilation.
@@ -42,4 +43,3 @@ Check [DBLP][3] for the complete publication list.
 [17]: https://doi.org/10.1007/978-3-642-39038-8_15
 [18]: https://doi.org/10.1007/978-3-642-30561-0_24
 [19]: https://doi.org/10.1145/2162049.2162077
-
