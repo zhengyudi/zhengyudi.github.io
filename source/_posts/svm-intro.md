@@ -6,13 +6,13 @@ tags: SVM
 
 # Introduction
 
-  近期[开源][0]的Substrate VM（下称SVM）是一个构建在[Graal Compiler][1]上的，支持ahead-of-time (AOT) compilation的编译及运行框架。从执行时间上来看，SVM可划分为两部分：native image generator及SVM runtime。前者可看成一个普通的Java程序，用以生成可执行文件或动态链接库；后者是一个精简的runtime（与HotSpot相对应），包含异常处理，同步，线程管理，内存管理，Java Native Interface（JNI）等组件。SVM要求所运行的程序是封闭的，即不可动态加载其他类库等。这部分封闭的程序会被native image generator编译，并与SVM runtime相链接，继而形成一个自包含的二进制文件。
+近期[开源][0]的Substrate VM（下称SVM）是一个构建在[Graal Compiler][1]上的，支持ahead-of-time (AOT) compilation的编译及运行框架。从执行时间上来看，SVM可划分为两部分：native image generator及SVM runtime。前者可看成一个普通的Java程序，用以生成可执行文件或动态链接库；后者是一个精简的runtime（与HotSpot相对应），包含异常处理，同步，线程管理，内存管理，Java Native Interface（JNI）等组件。SVM要求所运行的程序是封闭的，即不可动态加载其他类库等。这部分封闭的程序会被native image generator编译，并与SVM runtime相链接，继而形成一个自包含的二进制文件。
 
 ----
 
 # Hello World
 
-  我们在Oracle Technology Network（OTN）上迭代发布的[GraalVM][2]版本，其中便包含native image generator（``native-image``）。GraalVM附载的语言实现，如``js``，``ruby``，``python``，及``lli``（LLVM bitcode interpreter），乃至``native-image``本身，均是由该工具产生。下面我们将借助这一工具编译一个简单的Hello World程序：
+我们在Oracle Technology Network（OTN）上迭代发布的[GraalVM][2]版本，其中便包含native image generator（``native-image``）。GraalVM附载的语言实现，如``js``，``ruby``，``python``，及``lli``（LLVM bitcode interpreter），乃至``native-image``本身，均是由该工具产生。下面我们将借助这一工具编译一个简单的Hello World程序：
 
 ```
 $ echo "public class HelloWorld { public static void main(String[] args) { System.out.println(\"Hello World\"); } }" > HelloWorld.java
@@ -35,9 +35,9 @@ $ /PATH/TO/GRAALVM_HOME/bin/native-image -H:Class=HelloWorld -H:Name=helloworld
     [total]:  28,188.48 ms
 ```
 
-  ``native-image``工具分为多个步骤，如[静态分析][3]，[编译][4]等。上述指令最终将在当前目录下生成指定名称（``-H:Name=``）的可执行文件，其入口为[``JavaMainWrapper.run``][5]。严格意义上讲入口是调用该方法的桩程序 —— SVM会为所有被[``@CEntryPoint``][6]注解的方法生成桩程序，完成由C空间调用至Java空间的准备工作。在``JavaMainWrapper.run``方法[调用][7]所指定主类（``-H:Class=``）的主方法之前并没有出现类似HotSpot中冗杂的初始化操作。实际上，``native-image``会维护一个[``NativeImageHeap``][8]（可看成在运行目标程序前Java堆的一个快照），并在生成二进制文件时直接烧录至其``__DATA``段中。因此，相较于HotSpot而言SVM运行Java程序的memory footprint更小。
-  ``native-image``工具耗时较长，这是由于其实际工作是由一个运行在HotSpot上的子程序完成，因而受制于其启动性能较差的缺陷（解释执行）。之所以这部分代码没有被AOT编译，是因为native image generator依赖于HotSpot的类加载机制来载入需要编译的Java类。
-  编译而成的二进制文件的``__TEXT``段包含``HelloWorld.main``，JDK中所有可能被调用的方法，以及SVM runtime相应的代码。这部分runtime代码提供了简介中提及的各类runtime组件，但代价是生成的二进制文件大小远超于等价的helloworld.c编译而成的二进制文件：
+``native-image``工具分为多个步骤，如[静态分析][3]，[编译][4]等。上述指令最终将在当前目录下生成指定名称（``-H:Name=``）的可执行文件，其入口为[``JavaMainWrapper.run``][5]。严格意义上讲入口是调用该方法的桩程序 —— SVM会为所有被[``@CEntryPoint``][6]注解的方法生成桩程序，完成由C空间调用至Java空间的准备工作。在``JavaMainWrapper.run``方法[调用][7]所指定主类（``-H:Class=``）的主方法之前并没有出现类似HotSpot中冗杂的初始化操作。实际上，``native-image``会维护一个[``NativeImageHeap``][8]（可看成在运行目标程序前Java堆的一个快照），并在生成二进制文件时直接烧录至其``__DATA``段中。因此，相较于HotSpot而言SVM运行Java程序的memory footprint更小。
+``native-image``工具耗时较长，这是由于其实际工作是由一个运行在HotSpot上的子程序完成，因而受制于其启动性能较差的缺陷（解释执行）。之所以这部分代码没有被AOT编译，是因为native image generator依赖于HotSpot的类加载机制来载入需要编译的Java类。
+编译而成的二进制文件的``__TEXT``段包含``HelloWorld.main``，JDK中所有可能被调用的方法，以及SVM runtime相应的代码。这部分runtime代码提供了简介中提及的各类runtime组件，但代价是生成的二进制文件大小远超于等价的helloworld.c编译而成的二进制文件：
 
 ```
 // macOS-specific
@@ -74,7 +74,7 @@ $ size -m -x helloworldc
   total 0x100003000
 ```
 
-  通过追加``-H:Debug=``参数，``native-image``生成的二进制文件会包含调试信息，有助于我们了解被链接的所有Java方法（下面罗列调用``JavaMainWrapper.run``的桩程序的多个别名）：
+通过追加``-H:Debug=``参数，``native-image``生成的二进制文件会包含调试信息，有助于我们了解被链接的所有Java方法（下面罗列调用``JavaMainWrapper.run``的桩程序的多个别名）：
 
 ```
 $ /PATH/TO/GRAALVM_HOME/bin/native-image -H:Class=HelloWorld -H:Name=helloworld -H:Debug=1
@@ -90,7 +90,7 @@ $ objdump -t helloworld | grep "_java." | wc -l
 ...
 ```
 
-  ``native-image``的静态分析从一系列[root method][9]出发，保守地探索所有可被调用到的方法。如若探索到任一不被支持的功能，静态分析将抛出``UnsupportedFeatureException``，如``javac``的annotation processor所依赖的类加载机制。通过追加``-H:+ReportUnsupportedElementsAtRuntime``参数，``native-image``会将此类异常推延至运行时，使编译而成的``javac``支持不使用annotation processor的Java文件：
+``native-image``的静态分析从一系列[root method][9]出发，保守地探索所有可被调用到的方法。如若探索到任一不被支持的功能，静态分析将抛出``UnsupportedFeatureException``，如``javac``的annotation processor所依赖的类加载机制。通过追加``-H:+ReportUnsupportedElementsAtRuntime``参数，``native-image``会将此类异常推延至运行时，使编译而成的``javac``支持不使用annotation processor的Java文件：
 
 ```
 $ /PATH/TO/GRAALVM_HOME/bin/native-image -cp /PATH/TO/JAVA_HOME/lib/tools.jar -H:Class=com.sun.tools.javac.Main -H:Name=javac -H:+ReportUnsupportedElementsAtRuntime -H:IncludeResourceBundles=com.sun.tools.javac.resources.compiler,com.sun.tools.javac.resources.javac,com.sun.tools.javac.resources.version
@@ -119,7 +119,7 @@ $ time javac HelloWorld.java
 
 # HOWTO
 
-  SVM源代码的编译需借助[``mx``][10]工具及支持``JVMCI``的JDK，如[labsjdk][11]（注：请下载页面最下方的labsjdk，直接使用GraalVM可能会导致共有类的编译问题）。下载完成后将``JAVA_HOME``指向labsjdk路径。
+SVM源代码的编译需借助[``mx``][10]工具及支持``JVMCI``的JDK，如[labsjdk][11]（注：请下载页面最下方的labsjdk，直接使用GraalVM可能会导致共有类的编译问题）。下载完成后将``JAVA_HOME``指向labsjdk路径。
 
 ```
 $ git clone https://github.com/graalvm/graal.git
@@ -131,8 +131,8 @@ $ javac svmbuild/HelloWorld.java
 $ mx image -cp $PWD/svmbuild -H:Class=HelloWorld -H:Name=helloworld
 ```
 
-  指令``mx image``除自动将目标文件写入``svmbuild``目录外等同于``native-image``工具，例如同样需耗费较长的时间。SVM提供了另一种非缺省的解决方案，即让native image generator以server的形式运行（``mx image_server_start``），接受请求（通过向``mx image``追加``-server``参数）并返回编译结果。充分预热的native image generator，可将编译效率提升至三倍以上。
-  与``javac``不同，对[Truffle][12]语言实现而言，由于运行需加载的Java类仅限于语言解释器及其依赖库，因此可以被SVM完美支持。下述指令将使用SVM编译ruby语言实现[TruffleRuby][13]：
+指令``mx image``除自动将目标文件写入``svmbuild``目录外等同于``native-image``工具，例如同样需耗费较长的时间。SVM提供了另一种非缺省的解决方案，即让native image generator以server的形式运行（``mx image_server_start``），接受请求（通过向``mx image``追加``-server``参数）并返回编译结果。充分预热的native image generator，可将编译效率提升至三倍以上。
+与``javac``不同，对[Truffle][12]语言实现而言，由于运行需加载的Java类仅限于语言解释器及其依赖库，因此可以被SVM完美支持。下述指令将使用SVM编译ruby语言实现[TruffleRuby][13]：
 
 ```
 $ cd /PATH/TO/graal/..
@@ -144,7 +144,7 @@ $ mx image -ruby
 $ svmbuild/ruby -Xhome=../../truffleruby
 ```
 
-  编译TruffleRuby的指令较为复杂，因此我们提供了``mx image -ruby``的封装。它将在包含``graal``的git repo的路径下寻找``truffleruby``的repo，编译其通过``mx build``生成的jar包。
+编译TruffleRuby的指令较为复杂，因此我们提供了``mx image -ruby``的封装。它将在包含``graal``的git repo的路径下寻找``truffleruby``的repo，编译其通过``mx build``生成的jar包。
 
 ----
 
