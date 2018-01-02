@@ -27,9 +27,15 @@ tags: SVM
 我们在Oracle Technology Network（OTN）上迭代发布的[GraalVM][5]版本，其中便包含native image generator（``native-image``）。GraalVM附载的语言实现，如``js``，``ruby``，``python``，及``lli`` （LLVM bitcode interpreter），乃至``native-image``本身，均是由该工具产生。下面我们将借助这一工具编译一个简单的Hello World程序：
 
 ```
-$ echo "public class HelloWorld { public static void main(String[] args) { System.out.println(\"Hello World\"); } }" > HelloWorld.java
+$ export GRAALVM_HOME=/PATH/TO/GRAALVM/HOME
+$ echo '// HelloWorld.java
+public class HelloWorld {
+    public static void main(String[] args) {
+        System.out.println("Hello World");
+    }
+}' > HelloWorld.java
 $ javac HelloWorld.java
-$ /PATH/TO/GRAALVM_HOME/bin/native-image -H:Class=HelloWorld -H:Name=helloworld
+$ $GRAALVM_HOME/bin/native-image -H:Class=HelloWorld -H:Name=helloworld
   classlist:   1,429.11 ms
       (cap):   2,010.48 ms
       setup:   3,088.00 ms
@@ -90,10 +96,10 @@ Segment __LINKEDIT: 0x1000
 total 0x100003000
 ```
 
-通过追加``-H:Debug=``参数，``native-image``生成的二进制文件会包含调试信息，有助于我们了解被链接的所有Java方法（下面罗列调用``JavaMainWrapper.run``的桩程序的多个别名）：
+通过追加``-H:Debug=``参数，``native-image``生成的二进制文件将包含调试信息，有助于我们了解被链接的所有Java方法（下面罗列调用``JavaMainWrapper.run``的桩程序的多个别名）：
 
 ```
-$ /PATH/TO/GRAALVM_HOME/bin/native-image -H:Class=HelloWorld -H:Name=helloworld -H:Debug=1
+$ $GRAALVM_HOME/bin/native-image -H:Class=HelloWorld -H:Name=helloworld -H:Debug=1
 $ objdump -t helloworld
 ...
 0000000100006d90 g       __TEXT,__text  _com_002eoracle_002esvm_002ecore_002eJavaMainWrapper_002erun_0028ILorg_002egraalvm_002enativeimage_002ec_002etype_002eCCharPointerPointer_003b_0029
@@ -106,29 +112,38 @@ $ objdump -t helloworld | grep "_java." | wc -l
 ...
 ```
 
-``native-image``的静态分析从一系列[root method][12]出发，保守地探索所有可被调用到的方法。如若探索到任一不被支持的功能，静态分析将抛出``UnsupportedFeatureException``，如``javac``的annotation processor所依赖的类加载机制。通过追加``-H:+ReportUnsupportedElementsAtRuntime``参数，``native-image``会将此类异常推延至运行时，使编译而成的``javac``支持不使用annotation processor的Java文件：
+除了提供主函数生成可执行文件，我们还可以借助``-H:Kind=SHARED_LIBRARY``及``@CEntryPoint``来生成动态链接库，如下所示：
 
 ```
-$ /PATH/TO/GRAALVM_HOME/bin/native-image -cp /PATH/TO/JAVA_HOME/lib/tools.jar -H:Class=com.sun.tools.javac.Main -H:Name=javac -H:+ReportUnsupportedElementsAtRuntime -H:IncludeResourceBundles=com.sun.tools.javac.resources.compiler,com.sun.tools.javac.resources.javac,com.sun.tools.javac.resources.version
-   classlist:   2,395.38 ms
-       (cap):   2,142.33 ms
-       setup:   3,199.94 ms
-  (typeflow):   7,480.60 ms
-   (objects):   4,484.99 ms
-  (features):      62.50 ms
-    analysis:  12,374.56 ms
-    universe:     874.61 ms
-     (parse):   2,720.81 ms
-    (inline):   2,563.05 ms
-   (compile):  31,228.65 ms
-     compile:  38,206.37 ms
-       image:   6,352.41 ms
-       write:   2,926.77 ms
-     [total]:  66,438.46 ms
-$ time ./javac -proc:none -bootclasspath /PATH/TO/JAVA_HOME/jre/lib/rt.jar HelloWorld.java
-        0.05 real         0.02 user         0.01 sys
-$ time javac HelloWorld.java
-        0.59 real         1.09 user         0.11 sys
+$ echo '// HelloWorld.java
+import org.graalvm.nativeimage.c.function.CEntryPoint;
+import org.graalvm.nativeimage.IsolateThread;
+
+public class HelloWorld {
+    @CEntryPoint
+    public static void foo(IsolateThread thread) {
+        System.out.println("Hello World");
+    }
+}' > HelloWorld.java
+$ javac -cp $GRAALVM_HOME/jre/lib/boot/graal-sdk.jar HelloWorld.java
+$ $GRAALVM_HOME/bin/native-image -H:Kind=SHARED_LIBRARY -H:Name=helloworld
+```
+
+上述指令将在当前目录下生成两个文件：动态链接库``helloworld.dylib``及对应的头文件``helloworld.h``。后者包含生成的入口函数及一系列用以操作SVM线程的API（暂无文档）。这两者的使用方式和常规动态链接库一致：
+
+```
+$ echo '// helloworld.c
+#include "helloworld.h"
+
+int main() {
+    graal_isolate_t* isolate;
+    graal_create_isolate(0, &isolate);
+    HelloWorld_002efoo_0028Lorg_002egraalvm_002enativeimage_002eIsolateThread_003b_0029(graal_current_thread(isolate));
+    return 0;
+}' > helloworld.c
+$ gcc -o helloworldc2svm helloworld.c helloworld.dylib
+$ ./helloworldc2svm
+Hello World
 ```
 
 ----
@@ -142,17 +157,22 @@ $ git clone https://github.com/graalvm/graal.git
 $ cd graal/substratevm
 $ mx build
 $ mkdir svmbuild
-$ echo "public class HelloWorld { public static void main(String[] args) { System.out.println(\"Hello World\"); } }" > svmbuild/HelloWorld.java
+$ echo '// HelloWorld.java
+public class HelloWorld {
+    public static void main(String[] args) {
+        System.out.println("Hello World");
+    }
+}' > svmbuild/HelloWorld.java
 $ javac svmbuild/HelloWorld.java
 $ mx image -cp $PWD/svmbuild -H:Class=HelloWorld -H:Name=helloworld
 ```
 
-指令``mx image``除自动将目标文件写入``svmbuild``目录外等同于``native-image``工具，例如同样需耗费较长的时间。SVM提供了另一种非缺省的解决方案，即让native image generator以server的形式运行（``mx image_server_start``），接受请求（通过向``mx image``追加``-server``参数）并返回编译结果。充分预热的native image generator，可将编译效率提升至三倍以上。
+指令``mx image``除自动将目标文件写入``svmbuild``目录外等同于``native-image``工具，例如同样需耗费较长的时间。SVM提供了另一种非缺省的解决方案，即让native image generator以server的形式运行（``mx image_server_start``），接受请求（``mx image -server ...``）并返回编译结果。充分预热的native image generator，可将编译效率提升至三倍以上。
 
-与``javac``不同，对Truffle语言实现而言，由于运行需加载的Java类仅限于语言解释器及其依赖库，因此可以被SVM完美支持。下述指令将使用SVM编译ruby语言实现[TruffleRuby][15]：
+对Truffle语言实现而言，由于运行需加载的Java类仅限于语言解释器及其依赖库，因此可以被SVM完美支持。下述指令将使用SVM编译ruby语言实现[TruffleRuby][15]：
 
 ```
-$ cd /PATH/TO/graal/..
+$ cd /PATH/TO/GRAAL/REPO/..
 $ git clone https://github.com/graalvm/truffleruby.git
 $ cd truffleruby
 $ mx build
@@ -201,7 +221,56 @@ final class Target_java_lang_System {
 
 该替代与[HotSpot的实现][18]非常类似，即从每个对象的特定偏移量读取其identityHashCode，如若不存在则随机生成一个。这段代码的问题在于没有对hashcode的写入操作加锁，因此使用CAS指令即可[修复][19]。
 
-前面提到静态分析可识别无法支持的功能，这也是通过类似的机制来实现的。SVM所不支持的组件（类，字段，构造器，或方法）需要由[``@Delete``][20]注解，或者通过``@Substitute``注解Java类并且不提供某些方法的替代来实现隐式标记。当静态分析探测到标记为deleted的组件时，``native_image``将会抛出``UnsupportedFeatureException``异常。编译``javac``时的异常即是探测到对``java. lang.ClassLoader.<init>``的调用，由这一[替代][21]隐式声明。
+通过类似的机制native image generator可识别SVM所不支持的组件（类，字段，构造器，或方法）。这些组件需要由[``@Delete``][20]注解，或者通过``@Substitute``注解Java类并且不提供某些方法的替代来实现隐式标记。静态分析会从一系列[root method][12]出发，保守地探索所有可被调用到的方法。如若探索到任一不被支持的功能，它将抛出``UnsupportedFeatureException``。由于``javac``的annotation processor依赖于类加载机制，因此静态分析会探测到对``java.lang.ClassLoader.<init>``的调用，由这一[替代][21]隐式声明。
+
+```
+$ mx image -cp $JAVA_HOME/lib/tools.jar -H:Class=com.sun.tools.javac.Main -H:Name=javac -H:IncludeResourceBundles=com.sun.tools.javac.resources.compiler,com.sun.tools.javac.resources.javac,com.sun.tools.javac.resources.version
+classlist:   3,167.32 ms
+    (cap):   1,709.58 ms
+    setup:   3,289.98 ms
+ analysis:  12,421.88 ms
+error: unsupported features in 3 methods
+Detailed message:
+Error: Bytecode parsing error: Unsupported constructor java.lang.ClassLoader.<init>(ClassLoader) is reachable: The declaring class of this element has been substituted, but this element is not present in the substitution class
+To diagnose the issue, you can add the option -H:+ReportUnsupportedElementsAtRuntime. The unsupported element is then reported at run time when it is accessed the first time.
+Trace:
+        at parsing java.security.SecureClassLoader.<init>(SecureClassLoader.java:76)
+Call path from entry point to java.security.SecureClassLoader.<init>(ClassLoader):
+        at java.security.SecureClassLoader.<init>(SecureClassLoader.java:76)
+        at java.net.URLClassLoader.<init>(URLClassLoader.java:100)
+        ...
+```
+
+通过追加``-H:+ReportUnsupportedElementsAtRuntime``参数，native image generator会将此类异常推延至运行时，使编译而成的``javac``支持不使用annotation processor的Java文件：
+
+```
+$ mx image -H:+ReportUnsupportedElementsAtRuntime -cp $JAVA_HOME/lib/tools.jar -H:Class=com.sun.tools.javac.Main -H:Name=javac -H:IncludeResourceBundles=com.sun.tools.javac.resources.compiler,com.sun.tools.javac.resources.javac,com.sun.tools.javac.resources.version
+   classlist:   3,442.31 ms
+       (cap):   1,825.62 ms
+       setup:   3,298.60 ms
+  (typeflow):   7,639.63 ms
+   (objects):   4,105.75 ms
+  (features):     139.78 ms
+    analysis:  12,633.02 ms
+14 method(s) included for runtime compilation
+    universe:     784.26 ms
+     (parse):   2,098.70 ms
+   (compile):  11,272.73 ms
+     compile:  14,692.47 ms
+       image:   3,576.05 ms
+       write:   1,870.27 ms
+     [total]:  40,407.83 ms
+$ echo '// HelloWorld.java
+public class HelloWorld {
+    public static void main(String[] args) {
+        System.out.println("Hello World");
+    }
+}' > HelloWorld.java
+$ time svmbuild/javac -proc:none -bootclasspath $JAVA_HOME/jre/lib/rt.jar HelloWorld.java
+        0.05 real         0.02 user         0.01 sys
+$ time javac HelloWorld.java
+        0.59 real         1.09 user         0.11 sys
+```
 
 To be continued..
 
