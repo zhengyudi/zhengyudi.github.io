@@ -10,6 +10,8 @@ tags: SVM
 
 从执行时间上来看，SVM可划分为两部分：native image generator及SVM runtime。前者可看成一个普通的Java程序，用以生成可执行文件或动态链接库；后者是一个精简的runtime（与HotSpot相对应），包含异常处理，同步，线程管理，内存管理，Java Native Interface（JNI）等组件。SVM要求所运行的程序是封闭的，即不可动态加载其他类库等。这部分封闭的程序会被native image generator编译，并与SVM runtime相链接，继而形成一个自包含的二进制文件。
 
+<!--more-->
+
 ----
 
 # Hello World
@@ -61,21 +63,23 @@ Segment __DATA: 0x272000
 	Section __const: 0x1f5aa0
 	Section __data: 0x7a188
 	total 0x26fc50
+Segment __LINKEDIT: 0x3d7d4
+total 0x1004a17d4
 $ size -m -x helloworldc
-  Segment __PAGEZERO: 0x100000000
-  Segment __TEXT: 0x1000
-  	Section __text: 0x2a
-  	Section __stubs: 0x6
-  	Section __stub_helper: 0x1a
-  	Section __cstring: 0xd
-  	Section __unwind_info: 0x48
-  	total 0x9f
-  Segment __DATA: 0x1000
-  	Section __nl_symbol_ptr: 0x10
-  	Section __la_symbol_ptr: 0x8
-  	total 0x18
-  Segment __LINKEDIT: 0x1000
-  total 0x100003000
+Segment __PAGEZERO: 0x100000000
+Segment __TEXT: 0x1000
+	Section __text: 0x2a
+	Section __stubs: 0x6
+	Section __stub_helper: 0x1a
+	Section __cstring: 0xd
+	Section __unwind_info: 0x48
+	total 0x9f
+Segment __DATA: 0x1000
+	Section __nl_symbol_ptr: 0x10
+	Section __la_symbol_ptr: 0x8
+	total 0x18
+Segment __LINKEDIT: 0x1000
+total 0x100003000
 ```
 
 通过追加``-H:Debug=``参数，``native-image``生成的二进制文件会包含调试信息，有助于我们了解被链接的所有Java方法（下面罗列调用``JavaMainWrapper.run``的桩程序的多个别名）：
@@ -121,7 +125,7 @@ $ time javac HelloWorld.java
 
 ----
 
-# HOWTO
+# Build from sources
 
 SVM源代码的编译需借助[``mx``][13]工具及支持``JVMCI``的JDK，如[labsjdk][14]（注：请下载页面最下方的labsjdk，直接使用GraalVM可能会导致共有类的编译问题）。下载完成后将``JAVA_HOME``指向labsjdk路径。
 
