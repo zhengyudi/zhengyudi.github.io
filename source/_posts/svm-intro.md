@@ -6,7 +6,7 @@ tags: SVM
 
 # Introduction
 
-近期[开源][1]的Substrate VM（下称SVM）是一个构建在[Graal Compiler][2]上的，支持ahead-of-time (AOT) compilation的编译及运行框架。它的设计初衷是提供一个高startup performance，低memory print，以及能无缝衔接C代码（与JNI相较）的runtime。此外，SVM能完美适配[Truffle][3]语言实现，前段时间公布的[Oracle Database Multilingual Engine][4]便是基于这项技术。
+近期[开源][1]的Substrate VM（下称SVM）是一个构建在[Graal Compiler][2]上的，支持ahead-of-time (AOT) compilation的编译及运行框架。它的设计初衷是提供一个高startup performance，低memory print，以及能无缝衔接C代码（与JNI相较）的runtime，并能完美适配[Truffle][3]语言实现。
 
 <!--more-->
 
@@ -17,7 +17,6 @@ tags: SVM
 * GraalVM: http://www.oracle.com/technetwork/oracle-labs/program-languages/
 * Graal tutorial: http://lafo.ssw.uni-linz.ac.at/papers/2017_PLDI_GraalTutorial.pdf
 * Publications: https://github.com/graalvm/graal/blob/master/docs/Publications.md
-* Resources: https://github.com/neomatrix369/awesome-graal
 
 ----
 
