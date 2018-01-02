@@ -8,13 +8,22 @@ tags: SVM
 
 近期[开源][1]的Substrate VM（下称SVM）是一个构建在[Graal Compiler][2]上的，支持ahead-of-time (AOT) compilation的编译及运行框架。它的设计初衷是提供一个高startup performance，低memory print，以及能无缝衔接C代码（与JNI相较）的runtime。此外，SVM能完美适配[Truffle][3]语言实现，前段时间公布的[Oracle Database Multilingual Engine][4]便是基于这项技术。
 
-从执行时间上来看，SVM可划分为两部分：native image generator及SVM runtime。前者可看成一个普通的Java程序，用以生成可执行文件或动态链接库；后者是一个精简的runtime（与HotSpot相对应），包含异常处理，同步，线程管理，内存管理，Java Native Interface（JNI）等组件。SVM要求所运行的程序是封闭的，即不可动态加载其他类库等。这部分封闭的程序会被native image generator编译，并与SVM runtime相链接，继而形成一个自包含的二进制文件。
-
 <!--more-->
+
+这篇笔记将通过一些例子介绍SVM的实现及对应的源代码。如对SVM的架构，算法，性能等感兴趣，可参考如下链接：
+* Overview: http://www.oracle.com/technetwork/java/jvmls2015-wimmer-2637907.pdf
+* Video: https://www.youtube.com/watch?v=5BMHIeMXTqA
+* Sources: https://github.com/graalvm/graal/tree/master/substratevm
+* GraalVM: http://www.oracle.com/technetwork/oracle-labs/program-languages/
+* Graal tutorial: http://lafo.ssw.uni-linz.ac.at/papers/2017_PLDI_GraalTutorial.pdf
+* Publications: https://github.com/graalvm/graal/blob/master/docs/Publications.md
+* Resources: https://github.com/neomatrix369/awesome-graal
 
 ----
 
 # Hello World
+
+从执行时间上来看，SVM可划分为两部分：native image generator及SVM runtime。前者可看成一个普通的Java程序，用以生成可执行文件或动态链接库；后者是一个精简的runtime（与HotSpot相对应），包含异常处理，同步，线程管理，内存管理，Java Native Interface（JNI）等组件。SVM要求所运行的程序是封闭的，即不可动态加载其他类库等。这部分封闭的程序会被native image generator编译，并与SVM runtime相链接，继而形成一个自包含的二进制文件。
 
 我们在Oracle Technology Network（OTN）上迭代发布的[GraalVM][5]版本，其中便包含native image generator（``native-image``）。GraalVM附载的语言实现，如``js``，``ruby``，``python``，及``lli`` （LLVM bitcode interpreter），乃至``native-image``本身，均是由该工具产生。下面我们将借助这一工具编译一个简单的Hello World程序：
 
@@ -159,7 +168,7 @@ $ svmbuild/ruby -Xhome=../../truffleruby
 
 # SVM Internals
 
-前段时间碰到一个很难复现的bug，极小概率在``graal-js``试图编译js代码时触发。经调试得知：1. 仅在native image中复现；2. 触发原因是``System.identityHashCode(Object)``对同一对象返回不同的值。当时我推测``NativeImageHeap``中缓存了某些对象的identityHashCode（例如在``HashMap``中），而在运行时再对这些对象求identityHashCode则会得到不同的结果。但这一猜想被SVM组的开发者否定了，因为SVM已经有机制预防这种哈希值不一致的情况出现。
+前段时间碰到一个很难复现的bug，极小概率在``graal-js``试图编译js代码时触发。经调试得知：1. 仅在native image中复现；2. 触发原因是``System.identityHashCode(Object)``对同一对象返回不同的值。在SVM中同一段代码可能被两个不同的runtime执行，即在生成二进制文件时由HotSpot运行（hosted mode），或在SVM runtime中运行。当时我推测``NativeImageHeap``中缓存了某些对象的identityHashCode（例如在``HashMap``中），而在SVM runtime中再对这些对象求identityHashCode则会得到不同的结果。但这一猜想被SVM组的开发者否定了，因为SVM已经有机制预防这种哈希值不一致的情况出现。
 
 SVM无法直接使用HotSpot的runtime代码，因此所有的native方法皆需有对应的实现。SVM的解决方案是在Java层提供替代，并在编译过程中将编译内容替换掉。这些替代方法使用[``@TargetClass``][16]和[``@Substitute``][17]注解，如``System. identityHashCode(Object)``的替代：
 
@@ -191,20 +200,11 @@ final class Target_java_lang_System {
 }
 ```
 
-该替代与[HotSpot的实现][18]非常类似，即从每个对象的特定偏移量读取其identityHashCode，如若不存在则随机生成一个。这段代码的问题在于没有对hashcode的写入操作加锁，因此使用CAS指令即可[解决][19]。
+该替代与[HotSpot的实现][18]非常类似，即从每个对象的特定偏移量读取其identityHashCode，如若不存在则随机生成一个。这段代码的问题在于没有对hashcode的写入操作加锁，因此使用CAS指令即可[修复][19]。
 
 前面提到静态分析可识别无法支持的功能，这也是通过类似的机制来实现的。SVM所不支持的组件（类，字段，构造器，或方法）需要由[``@Delete``][20]注解，或者通过``@Substitute``注解Java类并且不提供某些方法的替代来实现隐式标记。当静态分析探测到标记为deleted的组件时，``native_image``将会抛出``UnsupportedFeatureException``异常。编译``javac``时的异常即是探测到对``java. lang.ClassLoader.<init>``的调用，由这一[替代][21]隐式声明。
 
 To be continued..
-
-----
-
-# Useful references
-
-* GraalVM: http://www.oracle.com/technetwork/oracle-labs/program-languages/
-* SVM sources: https://github.com/graalvm/graal/tree/master/substratevm
-* Graal resources: https://github.com/neomatrix369/awesome-graal
-
 
 [1]: https://github.com/graalvm/graal/tree/master/substratevm
 [2]: http://www.oracle.com/technetwork/oracle-labs/program-languages/
