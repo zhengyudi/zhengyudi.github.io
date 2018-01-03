@@ -189,7 +189,7 @@ $ svmbuild/ruby -Xhome=../../truffleruby
 
 前段时间碰到一个很难复现的bug，极小概率在``graal-js``试图编译js代码时触发。经调试得知：1. 仅在native image中复现；2. 触发原因是``System.identityHashCode(Object)``对同一对象返回不同的值。在SVM中同一段代码可能被两个不同的runtime执行，即在生成二进制文件时由HotSpot运行（hosted mode），或在SVM runtime中运行。当时我推测``NativeImageHeap``中缓存了某些对象的identityHashCode（例如在``HashMap``中），而在SVM runtime中再对这些对象求identityHashCode则会得到不同的结果。但这一猜想被SVM组的开发者否定了，因为SVM已经有机制预防这种哈希值不一致的情况出现。
 
-SVM无法直接使用HotSpot的runtime代码，因此所有的native方法皆需有对应的实现。SVM的解决方案是在Java层提供替代，并在编译过程中将编译内容替换掉。这些替代方法使用[``@TargetClass``][14]和[``@Substitute``][15]注解，如``System. identityHashCode(Object)``的替代：
+SVM无法直接使用HotSpot的runtime代码，因此所有的native方法皆需有对应的实现。SVM的解决方案是在Java层提供替代，并在编译过程中将编译内容替换掉。这些替代方法使用[``@TargetClass``][14]和[``@Substitute``][15]注解，如``System.identityHashCode(Object)``的替代：
 
 ```java
 // 修复前
