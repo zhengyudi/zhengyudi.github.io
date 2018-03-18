@@ -209,6 +209,14 @@ $ mx vm -XX:+UseJVMCICompiler -XX:+PrintGC -cp /path/to/Foo.class Foo
 
 ![IntelliJ](/content/images/2018/03/20/intellij.png)
 
+----
+
+Upcoming: advanced topics in Graal compiler
+* Debugging compiled code
+* Deoptimization & Java-level assumption --- SpeculationLog
+* Graal method substitution & Snippet
+* Implementing JVM intrinsics
+
 [0]: http://openjdk.java.net/jeps/317
 [1]: http://openjdk.java.net/jeps/295
 [2]: https://github.com/graalvm/graal/tree/master/substratevm
