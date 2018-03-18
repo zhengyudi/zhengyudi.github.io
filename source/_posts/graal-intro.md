@@ -6,9 +6,9 @@ tags: Graal
 
 # Introduction
 
-对于大部分应用开发者来说，Java编译器指的是JDK自带的`javac`指令。这一指令可将Java源程序编译成`.class`文件，其中包含的代码格式我们称之为Java bytecode（Java字节码）。这种代码格式无法直接运行，但可以被不同平台JVM中的interpreter执行（解释执行）。由于interpreter效率低下，JVM中的JIT compiler（即时编译器）会在运行时有选择性地将运行次数较多的方法编译成二进制代码，直接运行在底层硬件上。Oracle的HotSpot VM便附带两个用C++实现的JIT compiler：C1及C2。
+对于大部分应用开发者来说，Java编译器指的是JDK自带的`javac`指令。这一指令可将Java源程序编译成`.class`文件，其中包含的代码格式我们称之为Java bytecode（Java字节码）。这种代码格式无法直接运行，但可以被不同平台JVM中的interpreter解释执行。由于interpreter效率低下，JVM中的JIT compiler（即时编译器）会在运行时有选择性地将运行次数较多的方法编译成二进制代码，直接运行在底层硬件上。Oracle的HotSpot VM便附带两个用C++实现的JIT compiler：C1及C2。
 
-与interpreter，GC等JVM的其他子系统相比，JIT compiler并不依赖于诸如直接内存访问的底层语言特性。它可以看成一个输入Java bytecode输出二进制码的黑盒，其实现方式取决于开发者对开发效率，可维护性等的要求。Graal是一个以Java为主要编程语言，面向Java bytecode的编译器。与用C++实现的C1及C2相比，它的模块化更加明显，也更加容易维护。Graal既可以作为动态编译器，在运行时编译热点方法；亦可以作为静态编译器，实现AOT编译。在Java 10中，Graal作为试验性JIT compiler一同发布（[JEP 317][0]）。这篇文章将介绍Graal在动态编译上的应用。有关静态编译，可参照[JEP 295][1]或[Substrate VM][2]。
+与interpreter，GC等JVM的其他子系统相比，JIT compiler并不依赖于诸如直接内存访问的底层语言特性。它可以看成一个输入Java bytecode输出二进制码的黑盒，其实现方式取决于开发者对开发效率，可维护性等的要求。Graal是一个以Java为主要编程语言，面向Java bytecode的编译器。与用C++实现的C1及C2相比，它的模块化更加明显，也更加容易维护。Graal既可以作为动态编译器，在运行时编译热点方法；亦可以作为静态编译器，实现AOT编译。在Java 10中，Graal作为试验性JIT compiler一同发布（[JEP 317][0]）。这篇文章将介绍Graal在动态编译上的应用。有关静态编译，可查阅[JEP 295][1]或[Substrate VM][2]。
 
 <!--more-->
 
@@ -20,7 +20,7 @@ tags: Graal
 
 Java 7引入了tiered compilation的概念，综合了C1的高启动性能及C2的高峰值性能。这两个JIT compiler以及interpreter将HotSpot的执行方式划分为五个级别：
 
-* level 0：解释执行
+* level 0：interpreter解释执行
 * level 1：C1编译，无profiling
 * level 2：C1编译，仅方法及循环back-edge执行次数的profiling
 * level 3：C1编译，除level 2中的profiling外还包括branch（针对分支跳转字节码）及receiver type（针对成员方法调用或类检测，如checkcast，instnaceof，aastore字节码）的profiling
@@ -30,9 +30,9 @@ Java 7引入了tiered compilation的概念，综合了C1的高启动性能及C2�
 
 ![Tiered Compilation](/content/images/2018/03/20/tiered_compilation.png)
 
-上图列举了4种编译模式（非全部）。通常情况下，一个方法先被解释执行（level 0），然后被C1编译（level 3），再然后被得到profile数据的C2编译（level 4）。如果编译对象非常简单，虚拟机认为通过C1编译和通过C2编译并无区别，便会直接由C1编译（level 1）。在C1忙碌的情况下，解释器会触发profiling，而后方法会直接被C2编译；在C2忙碌的情况下，方法则会先由C1编译并保持较少的profiling（level 2），以获取较高的执行效率（与3级相比高30%）。
+上图列举了4种编译模式（非全部）。通常情况下，一个方法先被解释执行（level 0），然后被C1编译（level 3），再然后被得到profile数据的C2编译（level 4）。如果编译对象非常简单，虚拟机认为通过C1编译或通过C2编译并无区别，便会直接由C1编译且不插入profiling代码（level 1）。在C1忙碌的情况下，interpreter会触发profiling，而后方法会直接被C2编译；在C2忙碌的情况下，方法则会先由C1编译并保持较少的profiling（level 2），以获取较高的执行效率（与3级相比高30%）。
 
-Graal可替换C2成为HotSpot中的顶层JIT compiler，即上述level 4。与C2相比，Graal采用更加激进的优化方式，因此当程序达到稳定状态后，其执行效率（峰值性能）将更有优势。
+Graal可替换C2成为HotSpot的顶层JIT compiler，即上述level 4。与C2相比，Graal采用更加激进的优化方式，因此当程序达到稳定状态后，其执行效率（峰值性能）将更有优势。
 
 早期的Graal同C1及C2一样，与HotSpot是紧耦合的。这意味着每次编译Graal均需重新编译HotSpot。[JEP 243][3]将Graal中依赖于HotSpot的代码分离出来，形成Java-Level JVM Compiler Interface（JVMCI）。该接口主要提供如下三种功能：
 
@@ -46,9 +46,9 @@ Graal可替换C2成为HotSpot中的顶层JIT compiler，即上述level 4。与C2
 
 # Graal v.s. C2
 
-前面提到，JIT Compiler并不依赖于底层语言特性，它仅仅是一种代码形式到另一种代码形式的转换。因此，理论上任意C2中以C++实现的优化均可以在Graal中通过Java实现，反之亦然。事实上，许多C2中实现的intrinsic均被移植到Java中，如近期由其他开发者贡献的`String.compareTo` intrinsic的移植。当然，局限于C++的开发/维护难度（个人猜测），许多Graal中被证明有效的优化并没有被成功移植到C2上，这其中就包含Graal的inlining算法及partial escape analysis（PEA）。
+前面提到，JIT Compiler并不依赖于底层语言特性，它仅仅是一种代码形式到另一种代码形式的转换。因此，理论上任意C2中以C++实现的优化均可以在Graal中通过Java实现，反之亦然。事实上，许多C2中实现的优化均被移植到Graal中，如近期由其他开发者贡献的`String.compareTo` intrinsic的移植。当然，局限于C++的开发/维护难度（个人猜测），许多Graal中被证明有效的优化并没有被成功移植到C2上，这其中就包含Graal的inlining算法及partial escape analysis（PEA）。
 
-Inlining是指在编译时识别callsite的目标方法，将其方法体纳入编译范围并用其返回结果替换原callsite。最简单直观的例子便是Java中常见的getter/setter方法 --- inlining可以将原方法中调用getter/setter的callsite优化成单一内存访问指令。Inlining被业内戏称为优化之母，其原因在于它能引发更多优化。然而在实践中我们往往受制于编译单元大小或编译时间的限制，无法无限制地递归inline。因此，inlining的算法及策略很大程度上决定了编译器的优劣，尤其是在使用Java 8的stream API或使用Scala语言的场景下。这两种场景对应的Java bytecode包含大量的多层单方法调用。
+Inlining是指在编译时识别callsite的目标方法，将其方法体纳入编译范围并用其返回结果替换原callsite。最简单直观的例子便是Java中常见的getter/setter方法 --- inlining可以将一个方法中调用getter/setter的callsite优化成单一内存访问指令。Inlining被业内戏称为优化之母，其原因在于它能引发更多优化。然而在实践中我们往往受制于编译单元大小或编译时间的限制，无法无限制地递归inline。因此，inlining的算法及策略很大程度上决定了编译器的优劣，尤其是在使用Java 8的stream API或使用Scala语言的场景下。这两种场景对应的Java bytecode包含大量的多层单方法调用。
 
 Graal拥有两个inliner实现。社区版的inliner采用的是深度优先的搜索方式，在分析某一方法时，一旦遇到不值得inline的callsite时便回溯至该方法的调用者。Graal允许自定义策略以判断某一callsite值不值得inline。默认情况下，Graal会采取一种相对贪婪的策略，根据callsite的目标方法的大小做出相应的决定。Graal enterprise的inliner则对所有callsite进行加权排序，其加权算法取决于目标方法的大小以及可能引发的优化。当目标方法被inline后，其包含的callsite同样会进入该加权队列中。这两种搜索方式都较为适合拥有多层单方法调用的应用场景。
 
@@ -132,7 +132,7 @@ public class Foo {
 }
 ```
 
-HotSpot的C2便已应用控制流无关的EA实现scalar replacement。而Graal的[PEA][5]则在此基础上引入了控制流信息，将所有的堆分配操作虚拟化，并仅在对象确定逃逸的分支materialize。与C2的EA相比，PEA分析效率较低，但能够在对象没有逃逸的分支上实现scalar replacement。如下例所示，如果then-branch的执行概率为1%，那么99%的情况下PEA并不会执行堆分配，而C2的EA则一定会执行堆分配。另一个典型的例子是渲染引擎Sunflow --- 在运行DaCapo benchmark suite所附带的默认workload时，Graal的PEA判定约27%的堆分配（共占700M）可被虚拟化。该数字远超C2的EA。
+HotSpot的C2便已应用控制流无关的EA实现scalar replacement。而Graal的[PEA][5]则在此基础上引入了控制流信息，将所有的堆分配操作虚拟化，并仅在对象确定逃逸的分支materialize。与C2的EA相比，PEA分析效率较低，但能够在对象没有逃逸的分支上实现scalar replacement。如下例所示，如果then-branch的执行概率为1%，那么被PEA优化后的代码在99%的情况下并不会执行堆分配，而C2的EA则100%会执行堆分配。另一个典型的例子是渲染引擎Sunflow --- 在运行DaCapo benchmark suite所附带的默认workload时，Graal的PEA判定约27%的堆分配（共占700M）可被虚拟化。该数字远超C2的EA。
 
 ```java
 // run with -XX:+PrintGC
@@ -211,6 +211,14 @@ $ mx vm -XX:+UseJVMCICompiler -XX:+PrintGC -cp /path/to/Foo.class Foo
 
 ----
 
+# Useful Links
+
+* [Graal publications][10]
+* [Graal tutorial][11], [slides][12]
+* [Chris Seaton: Understanding How Graal Works - a Java JIT Compiler Written in Java][13]
+
+----
+
 Upcoming: advanced topics in Graal compiler
 * Debugging compiled code
 * Deoptimization & Java-level assumption --- SpeculationLog
@@ -227,3 +235,7 @@ Upcoming: advanced topics in Graal compiler
 [7]: https://github.com/oracle/graal
 [8]: https://github.com/graalvm/mx
 [9]: http://www.oracle.com/technetwork/oracle-labs/program-languages/downloads/index.html
+[10]: https://github.com/oracle/graal/blob/master/docs/Publications.md
+[11]: https://www.youtube.com/watch?v=5_Y3kc--eTI
+[12]: http://lafo.ssw.uni-linz.ac.at/papers/2017_PLDI_GraalTutorial.pdf
+[13]: http://chrisseaton.com/truffleruby/jokerconf17/
