@@ -8,7 +8,7 @@ tags: Graal
 
 对于大部分应用开发者来说，Java编译器指的是JDK自带的`javac`指令。这一指令可将Java源程序编译成`.class`文件，其中包含的代码格式我们称之为Java bytecode（Java字节码）。这种代码格式无法直接运行，但可以被不同平台JVM中的interpreter执行（解释执行）。由于interpreter效率低下，JVM中的JIT compiler（即时编译器）会在运行时有选择性地将运行次数较多的方法编译成二进制代码，直接运行在底层硬件上。Oracle的HotSpot VM便附带两个用C++实现的JIT compiler：C1及C2。
 
-与interpreter，GC等JVM的其他子系统相比，JIT compiler并不依赖于诸如直接内存访问的底层语言特性。它可以看成一个输入`byte[]`输出`byte[]`的黑盒，其实现方式取决于开发者对开发效率，可维护性等的要求。Graal是一个以Java为主要编程语言，面向Java bytecode的编译器。与用C++实现的C1及C2相比，它的模块化更加明显，也更加容易维护。Graal既可以作为动态编译器，在运行时编译热点方法；亦可以作为静态编译器，实现AOT编译。在Java 10中，Graal作为试验性JIT compiler一同发布（[JEP 317][0]）。这篇文章将介绍Graal在动态编译上的应用。有关静态编译，可参照[JEP 295][1]或[Substrate VM][2]。
+与interpreter，GC等JVM的其他子系统相比，JIT compiler并不依赖于诸如直接内存访问的底层语言特性。它可以看成一个输入Java bytecode输出二进制码的黑盒，其实现方式取决于开发者对开发效率，可维护性等的要求。Graal是一个以Java为主要编程语言，面向Java bytecode的编译器。与用C++实现的C1及C2相比，它的模块化更加明显，也更加容易维护。Graal既可以作为动态编译器，在运行时编译热点方法；亦可以作为静态编译器，实现AOT编译。在Java 10中，Graal作为试验性JIT compiler一同发布（[JEP 317][0]）。这篇文章将介绍Graal在动态编译上的应用。有关静态编译，可参照[JEP 295][1]或[Substrate VM][2]。
 
 <!--more-->
 
@@ -46,9 +46,9 @@ Graal可替换C2成为HotSpot中的顶层JIT compiler，即上述level 4。与C2
 
 # Graal v.s. C2
 
-前面提到，JIT Compiler并不依赖于底层语言特性，它仅仅是一种代码形式到另一种代码形式的转换。因此，理论上任意C2中以C++实现的优化均可以在Graal中通过Java实现，反之亦然。事实上，许多C2中实现的intrinsic均被移植到Java中，如近期由其他开发者贡献的`String.compareTo` intrinsic的移植。当然，局限于C++的开发/维护难度，许多Graal中被证明有效的优化并没有被成功移植到C2上，这其中就包含Graal的inlining算法及partial escape analysis（PEA）。
+前面提到，JIT Compiler并不依赖于底层语言特性，它仅仅是一种代码形式到另一种代码形式的转换。因此，理论上任意C2中以C++实现的优化均可以在Graal中通过Java实现，反之亦然。事实上，许多C2中实现的intrinsic均被移植到Java中，如近期由其他开发者贡献的`String.compareTo` intrinsic的移植。当然，局限于C++的开发/维护难度（个人猜测），许多Graal中被证明有效的优化并没有被成功移植到C2上，这其中就包含Graal的inlining算法及partial escape analysis（PEA）。
 
-Inlining是指在编译时识别callsite的目标方法，将其方法体纳入编译范围并用其返回结果替换原callsite。最简单直观的例子便是Java中常见的getter/setter方法 --- inlining可以将原方法中调用getter/setter的callsite优化成单一内存访问指令。Inlining被业内戏称为优化之母，其原因在于它能引发更多优化。然而在实践中我们往往受制于编译单元大小或编译时间的限制，无法无限制地递归inline。因此，inlining的算法及策略很大程度上决定了编译器的优劣，尤其是在使用Java 8的stream API或使用Scala语言的场景下。这两种场景对应的Java bytecode包含大量的多层单方法调用，而C2的inliner并没有对这一代码模式进行优化。
+Inlining是指在编译时识别callsite的目标方法，将其方法体纳入编译范围并用其返回结果替换原callsite。最简单直观的例子便是Java中常见的getter/setter方法 --- inlining可以将原方法中调用getter/setter的callsite优化成单一内存访问指令。Inlining被业内戏称为优化之母，其原因在于它能引发更多优化。然而在实践中我们往往受制于编译单元大小或编译时间的限制，无法无限制地递归inline。因此，inlining的算法及策略很大程度上决定了编译器的优劣，尤其是在使用Java 8的stream API或使用Scala语言的场景下。这两种场景对应的Java bytecode包含大量的多层单方法调用。
 
 Graal拥有两个inliner实现。社区版的inliner采用的是深度优先的搜索方式，在分析某一方法时，一旦遇到不值得inline的callsite时便回溯至该方法的调用者。Graal允许自定义策略以判断某一callsite值不值得inline。默认情况下，Graal会采取一种相对贪婪的策略，根据callsite的目标方法的大小做出相应的决定。Graal enterprise的inliner则对所有callsite进行加权排序，其加权算法取决于目标方法的大小以及可能引发的优化。当目标方法被inline后，其包含的callsite同样会进入该加权队列中。这两种搜索方式都较为适合拥有多层单方法调用的应用场景。
 
