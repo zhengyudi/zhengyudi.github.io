@@ -132,27 +132,39 @@ public class Foo {
 }
 ```
 
-HotSpot的C2便已应用控制流无关的EA实现scalar replacement。而Graal的[PEA][5]则在此基础上引入了控制流信息，将所有的堆分配操作虚拟化，并仅在对象确定逃逸的分支materialize。与C2的EA相比，PEA分析效率较低，但能够在对象没有逃逸的分支上实现scalar replacement。如下例所示，如果then-branch的执行概率为1%，那么99%的情况下PEA并不会执行堆分配。C2的EA则一定会执行堆分配。另一个典型的例子是渲染引擎Sunflow --- 在运行DaCapo benchmark suite所附带的默认workload时，Graal的PEA判定约27%的堆分配（共占700M）可被虚拟化。该数字远超C2的EA。
+HotSpot的C2便已应用控制流无关的EA实现scalar replacement。而Graal的[PEA][5]则在此基础上引入了控制流信息，将所有的堆分配操作虚拟化，并仅在对象确定逃逸的分支materialize。与C2的EA相比，PEA分析效率较低，但能够在对象没有逃逸的分支上实现scalar replacement。如下例所示，如果then-branch的执行概率为1%，那么99%的情况下PEA并不会执行堆分配，而C2的EA则一定会执行堆分配。另一个典型的例子是渲染引擎Sunflow --- 在运行DaCapo benchmark suite所附带的默认workload时，Graal的PEA判定约27%的堆分配（共占700M）可被虚拟化。该数字远超C2的EA。
 
 ```java
+// run with -XX:+PrintGC
 public class Foo {
+  // 放大Foo类实例的内存使用量
+  long placeHolder0;
+  long placeHolder1;
+  long placeHolder2;
+  long placeHolder3;
+  long placeHolder4;
+  long placeHolder5;
+  long placeHolder6;
+  long placeHolder7;
+  long placeHolder8;
+  long placeHolder9;
+  long placeHoldera;
+  long placeHolderb;
+  long placeHolderc;
+  long placeHolderd;
+  long placeHoldere;
+  long placeHolderf;
   public static void bar(boolean condition) {
-    Foo foo = new Foo();
+    Foo foo = new Foo(); // 生命周期短，可被young GC收集
     if (condition) {
-      foo.escape();
+      foo.hashCode(); // native函数，逃逸
     }
   }
-  public native void escape();
-}
-// with Graal's partial escape analysis:
-public class Foo {
-  public static void bar(boolean condition) {
-    if (condition) {
-      Foo foo = new Foo();
-      foo.escape();
+  public static void main(String[] args) {
+    for (int i = 0; i < Integer.MAX_VALUE; i++) {
+      bar(i % 100 == 0);
     }
   }
-  public native void escape();
 }
 ```
 
@@ -163,17 +175,17 @@ public class Foo {
 在Java 10 (Linux/x64, macOS/x64)中，默认情况下HotSpot仍使用C2，但通过向`java`命令添加`-XX:+UnlockExperimentalVMOptions -XX:+UseJVMCICompiler`参数便可将C2替换成Graal。
 
 ```sh
-# placeholder until Java 10 release
+# TODO update me after Java 10 release
 $ pwd
 /Users/zhengy/Workspace/jdk-10.jdk/Contents/Home
-$ bin/java -XX:+UnlockExperimentalVMOptions -XX:+UseJVMCICompiler -version
-openjdk version "10" 2018-03-20
-OpenJDK Runtime Environment 18.3 (build 10+46)
-OpenJDK 64-Bit Server VM 18.3 (build 10+46, mixed mode)
 $ ll jmods/jdk.internal.vm.*
 -rw-r--r--@ 1 zhengy  staff   401K Mar  8 03:05 jmods/jdk.internal.vm.ci.jmod
 -rw-r--r--@ 1 zhengy  staff   5.6M Mar  8 03:05 jmods/jdk.internal.vm.compiler.jmod
 -rw-r--r--@ 1 zhengy  staff    12K Mar  8 03:05 jmods/jdk.internal.vm.compiler.management.jmod
+$ bin/java -XX:+UnlockExperimentalVMOptions -XX:+UseJVMCICompiler -XX:+PrintGC -cp /path/to/Foo.class Foo
+...
+$ bin/java -XX:+PrintGC -cp /path/to/Foo.class Foo
+...
 ```
 
 [Oracle Labs GraalVM][6]是由Oracle Labs直接发布的JDK版本。它基于Java 8，并且囊括了Graal enterprise。如果对源代码感兴趣，可直接签出Graal社区版的[GitHub repo][7]。源代码的编译需借助[``mx``][8]工具及[labsjdk][9]（注：请下载页面最下方的labsjdk，直接使用GraalVM可能会导致编译问题）。
@@ -182,15 +194,15 @@ $ ll jmods/jdk.internal.vm.*
 # clone mx
 $ git clone https://github.com/graalvm/mx.git
 $ export PATH=$PWD/mx:$PATH
-# download and point JAVA_HOME to labsjdk
+# 下载并将JAVA_HOME指向labsjdk
 $ export JAVA_HOME=/path/to/labsjdk
 # clone Graal
 $ git clone https://github.com/oracle/graal.git
 $ cd graal/compiler
 $ mx build
-# 'mx vm' is equivalent to 'java'
-# use '-XX:+UseJVMCICompiler' to enable Graal JIT compiler
-$ mx vm -XX:+UseJVMCICompiler ...
+# 'mx vm'等同于'java'，具体可利用'mx -v vm'打印完整命令行
+# 添加'-XX:+UseJVMCICompiler'启用Graal
+$ mx vm -XX:+UseJVMCICompiler -XX:+PrintGC -cp /path/to/Foo.class Foo
 ```
 
 在`graal/compiler`目录下使用`mx eclipseinit`，`mx intellijinit`或`mx netbeansinit`可分别生成Eclipse，IntelliJ或NetBeans的工程配置文件。
