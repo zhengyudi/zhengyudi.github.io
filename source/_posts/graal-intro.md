@@ -175,16 +175,17 @@ public class Foo {
 在Java 10 (Linux/x64, macOS/x64)中，默认情况下HotSpot仍使用C2，但通过向`java`命令添加`-XX:+UnlockExperimentalVMOptions -XX:+UseJVMCICompiler`参数便可将C2替换成Graal。
 
 ```sh
-# TODO update me after Java 10 release
-$ pwd
-/Users/zhengy/Workspace/jdk-10.jdk/Contents/Home
+$ java -version
+java version "10" 2018-03-20
+Java(TM) SE Runtime Environment 18.3 (build 10+46)
+$ cd $JAVA_HOME
 $ ll jmods/jdk.internal.vm.*
--rw-r--r--@ 1 zhengy  staff   401K Mar  8 03:05 jmods/jdk.internal.vm.ci.jmod
--rw-r--r--@ 1 zhengy  staff   5.6M Mar  8 03:05 jmods/jdk.internal.vm.compiler.jmod
--rw-r--r--@ 1 zhengy  staff    12K Mar  8 03:05 jmods/jdk.internal.vm.compiler.management.jmod
-$ bin/java -XX:+UnlockExperimentalVMOptions -XX:+UseJVMCICompiler -XX:+PrintGC -cp /path/to/Foo.class Foo
+-rw-r--r--  1 root  wheel   393K Mar  8 03:16 jmods/jdk.internal.vm.ci.jmod
+-rw-r--r--  1 root  wheel   5.6M Mar  8 03:16 jmods/jdk.internal.vm.compiler.jmod
+-rw-r--r--  1 root  wheel   4.1K Mar  8 03:16 jmods/jdk.internal.vm.compiler.management.jmod
+$ java -XX:+UnlockExperimentalVMOptions -XX:+UseJVMCICompiler -XX:+PrintGC -cp /path/to/Foo.class Foo
 ...
-$ bin/java -XX:+PrintGC -cp /path/to/Foo.class Foo
+$ java -XX:+PrintGC -cp /path/to/Foo.class Foo
 ...
 ```
 
