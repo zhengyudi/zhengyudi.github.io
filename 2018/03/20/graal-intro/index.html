@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next pisces use-motion" lang="en">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.3" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.3">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.3" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Graal," />
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Introduction对于大部分应用开发者来说，Java编译器指的是JDK自带的javac指令。这一指令可将Java源程序编译成.class文件，其中包含的代码格式我们称之为Java bytecode（Java字节码）。这种代码格式无法直接运行，但可以被不同平台JVM中的interpreter解释执行。由于interpreter效率低下，JVM中的JIT compiler（即时编译器）会在运行时">
+<meta name="keywords" content="Graal">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Introduction to Graal">
+<meta property="og:url" content="https://zhengyudi.github.io/2018/03/20/graal-intro/index.html">
+<meta property="og:site_name" content="Yudi Zheng">
+<meta property="og:description" content="Introduction对于大部分应用开发者来说，Java编译器指的是JDK自带的javac指令。这一指令可将Java源程序编译成.class文件，其中包含的代码格式我们称之为Java bytecode（Java字节码）。这种代码格式无法直接运行，但可以被不同平台JVM中的interpreter解释执行。由于interpreter效率低下，JVM中的JIT compiler（即时编译器）会在运行时">
+<meta property="og:locale" content="en">
+<meta property="og:image" content="https://zhengyudi.github.io/content/images/2018/03/20/tiered_compilation.png">
+<meta property="og:image" content="https://zhengyudi.github.io/content/images/2018/03/20/intellij.png">
+<meta property="og:updated_time" content="2018-03-20T17:13:08.132Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Introduction to Graal">
+<meta name="twitter:description" content="Introduction对于大部分应用开发者来说，Java编译器指的是JDK自带的javac指令。这一指令可将Java源程序编译成.class文件，其中包含的代码格式我们称之为Java bytecode（Java字节码）。这种代码格式无法直接运行，但可以被不同平台JVM中的interpreter解释执行。由于interpreter效率低下，JVM中的JIT compiler（即时编译器）会在运行时">
+<meta name="twitter:image" content="https://zhengyudi.github.io/content/images/2018/03/20/tiered_compilation.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    version: '5.1.3',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhengyudi.github.io/2018/03/20/graal-intro/"/>
+
+
+
+
+
+  <title>Introduction to Graal | Yudi Zheng</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="en">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Yudi Zheng</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br />
+            
+            About
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhengyudi.github.io/2018/03/20/graal-intro/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Yudi Zheng (郑雨迪)">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Yudi Zheng">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Introduction to Graal</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-03-20T00:00:00+00:00">
+                2018-03-20
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2018/03/20/graal-intro/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count disqus-comment-count"
+                        data-disqus-identifier="2018/03/20/graal-intro/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Introduction"><a href="#Introduction" class="headerlink" title="Introduction"></a>Introduction</h1><p>对于大部分应用开发者来说，Java编译器指的是JDK自带的<code>javac</code>指令。这一指令可将Java源程序编译成<code>.class</code>文件，其中包含的代码格式我们称之为Java bytecode（Java字节码）。这种代码格式无法直接运行，但可以被不同平台JVM中的interpreter解释执行。由于interpreter效率低下，JVM中的JIT compiler（即时编译器）会在运行时有选择性地将运行次数较多的方法编译成二进制代码，直接运行在底层硬件上。Oracle的HotSpot VM便附带两个用C++实现的JIT compiler：C1及C2。</p>
+<p>与interpreter，GC等JVM的其他子系统相比，JIT compiler并不依赖于诸如直接内存访问的底层语言特性。它可以看成一个输入Java bytecode输出二进制码的黑盒，其实现方式取决于开发者对开发效率，可维护性等的要求。Graal是一个以Java为主要编程语言，面向Java bytecode的编译器。与用C++实现的C1及C2相比，它的模块化更加明显，也更加容易维护。Graal既可以作为动态编译器，在运行时编译热点方法；亦可以作为静态编译器，实现AOT编译。在Java 10中，Graal作为试验性JIT compiler一同发布（<a href="http://openjdk.java.net/jeps/317" target="_blank" rel="noopener">JEP 317</a>）。这篇文章将介绍Graal在动态编译上的应用。有关静态编译，可查阅<a href="http://openjdk.java.net/jeps/295" target="_blank" rel="noopener">JEP 295</a>或<a href="https://github.com/graalvm/graal/tree/master/substratevm" target="_blank" rel="noopener">Substrate VM</a>。</p>
+<a id="more"></a>
+<hr>
+<h1 id="Tiered-Compilation"><a href="#Tiered-Compilation" class="headerlink" title="Tiered Compilation"></a>Tiered Compilation</h1><p>在介绍Graal前，我们先了解HotSpot中的tiered compilation。前面提到，HotSpot集成了两个JIT compiler — C1及C2（或称为Client及Server）。两者的区别在于，前者没有应用激进的优化技术，因为这些优化往往伴随着耗时较长的代码分析。因此，C1的编译速度较快，而C2所编译的方法运行速度较快。在Java 7前，用户需根据自己的应用场景选择合适的JIT compiler。举例来说，针对偏好高启动性能的GUI用户端程序则使用C1，针对偏好高峰值性能的服务器端程序则使用C2。</p>
+<p>Java 7引入了tiered compilation的概念，综合了C1的高启动性能及C2的高峰值性能。这两个JIT compiler以及interpreter将HotSpot的执行方式划分为五个级别：</p>
+<ul>
+<li>level 0：interpreter解释执行</li>
+<li>level 1：C1编译，无profiling</li>
+<li>level 2：C1编译，仅方法及循环back-edge执行次数的profiling</li>
+<li>level 3：C1编译，除level 2中的profiling外还包括branch（针对分支跳转字节码）及receiver type（针对成员方法调用或类检测，如checkcast，instnaceof，aastore字节码）的profiling</li>
+<li>level 4：C2编译</li>
+</ul>
+<p>其中，1级和4级为接受状态 — 除非已编译的方法被invalidated（通常在deoptimization中触发），否则HotSpot不会再发出该方法的编译请求。</p>
+<p><img src="/content/images/2018/03/20/tiered_compilation.png" alt="Tiered Compilation"></p>
+<p>上图列举了4种编译模式（非全部）。通常情况下，一个方法先被解释执行（level 0），然后被C1编译（level 3），再然后被得到profile数据的C2编译（level 4）。如果编译对象非常简单，虚拟机认为通过C1编译或通过C2编译并无区别，便会直接由C1编译且不插入profiling代码（level 1）。在C1忙碌的情况下，interpreter会触发profiling，而后方法会直接被C2编译；在C2忙碌的情况下，方法则会先由C1编译并保持较少的profiling（level 2），以获取较高的执行效率（与3级相比高30%）。</p>
+<p>Graal可替换C2成为HotSpot的顶层JIT compiler，即上述level 4。与C2相比，Graal采用更加激进的优化方式，因此当程序达到稳定状态后，其执行效率（峰值性能）将更有优势。</p>
+<p>早期的Graal同C1及C2一样，与HotSpot是紧耦合的。这意味着每次编译Graal均需重新编译HotSpot。<a href="http://openjdk.java.net/jeps/243" target="_blank" rel="noopener">JEP 243</a>将Graal中依赖于HotSpot的代码分离出来，形成Java-Level JVM Compiler Interface（JVMCI）。该接口主要提供如下三种功能：</p>
+<ul>
+<li>响应HotSpot的编译请求，并分发给Java-Level JIT compiler</li>
+<li>允许Java-Level JIT compiler访问HotSpot中与JIT compilation相关的数据结构，包括类，字段，方法及其profiling数据等，并提供这些数据结构在Java层面的抽象</li>
+<li>提供HotSpot codecache的Java抽象，允许Java-Level JIT compiler部署编译完成的二进制代码</li>
+</ul>
+<p>综合利用这三种功能，我们可以将Java-Level编译器（不局限于Graal）集成至HotSpot中，响应HotSpot发出的level 4的编译请求并将编译后的二进制代码部署到HotSpot的codecache中。此外，单独利用上述第三种功能可以绕开HotSpot的编译系统 — Java-Level编译器将作为上层应用的类库直接部署编译后的二进制代码。Graal自身的单元测试便是依赖于直接部署而非等待HotSpot发出编译请求；<a href="https://github.com/oracle/graal/tree/master/truffle" target="_blank" rel="noopener">Truffle</a>亦是通过此机制部署编译后的语言解释器。</p>
+<hr>
+<h1 id="Graal-v-s-C2"><a href="#Graal-v-s-C2" class="headerlink" title="Graal v.s. C2"></a>Graal v.s. C2</h1><p>前面提到，JIT Compiler并不依赖于底层语言特性，它仅仅是一种代码形式到另一种代码形式的转换。因此，理论上任意C2中以C++实现的优化均可以在Graal中通过Java实现，反之亦然。事实上，许多C2中实现的优化均被移植到Graal中，如近期由其他开发者贡献的<code>String.compareTo</code> intrinsic的移植。当然，局限于C++的开发/维护难度（个人猜测），许多Graal中被证明有效的优化并没有被成功移植到C2上，这其中就包含Graal的inlining算法及partial escape analysis（PEA）。</p>
+<p>Inlining是指在编译时识别callsite的目标方法，将其方法体纳入编译范围并用其返回结果替换原callsite。最简单直观的例子便是Java中常见的getter/setter方法 — inlining可以将一个方法中调用getter/setter的callsite优化成单一内存访问指令。Inlining被业内戏称为优化之母，其原因在于它能引发更多优化。然而在实践中我们往往受制于编译单元大小或编译时间的限制，无法无限制地递归inline。因此，inlining的算法及策略很大程度上决定了编译器的优劣，尤其是在使用Java 8的stream API或使用Scala语言的场景下。这两种场景对应的Java bytecode包含大量的多层单方法调用。</p>
+<p>Graal拥有两个inliner实现。社区版的inliner采用的是深度优先的搜索方式，在分析某一方法时，一旦遇到不值得inline的callsite时便回溯至该方法的调用者。Graal允许自定义策略以判断某一callsite值不值得inline。默认情况下，Graal会采取一种相对贪婪的策略，根据callsite的目标方法的大小做出相应的决定。Graal enterprise的inliner则对所有callsite进行加权排序，其加权算法取决于目标方法的大小以及可能引发的优化。当目标方法被inline后，其包含的callsite同样会进入该加权队列中。这两种搜索方式都较为适合拥有多层单方法调用的应用场景。</p>
+<p>Escape analysis（逃逸分析，EA）是一类识别对象动态范围的程序分析。编译器中常见的应用有两类：如果对象仅被单一线程访问，则可去除针对该对象的锁操作；如果对象为堆分配且仅被单一方法访问（inlining的重要性再次体现），则可将该对象转化成栈分配。后者通常伴随着scalar replacement，即将对对象字段的访问替换成对虚拟局部操作数的访问，从而进一步将对象由栈分配转换成虚拟分配。这不仅节省了原本用于存放对象header的内存空间，而且可以在register allocator的帮助下将（部分）对象字段存放在寄存器中，在节省内存的同时提高执行效率（内存访问转换成寄存器访问）。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Foo</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">bar</span><span class="params">(ArrayList&lt;String&gt; list)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span> (String str : list) &#123;</span><br><span class="line">      System.out.println(str);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 等同于</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Foo</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">bar</span><span class="params">(ArrayList&lt;String&gt; list)</span> </span>&#123;</span><br><span class="line">    Iterator&lt;String&gt; itr = list.iterator();</span><br><span class="line">    <span class="keyword">while</span> (itr.hasNext()) &#123;</span><br><span class="line">      String str = itr.next();</span><br><span class="line">      System.out.println(str);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>Java中常见的for-each loop是EA的一大目标客户。我们知道for-each loop会调用被遍历对象的<code>iterator</code>方法，返回一个实现<code>interface Iterator</code>的对象，并利用其<code>hasNext</code>及<code>next</code>接口进行遍历。Java collections中的容器类（如<code>ArrayList</code>）通常会构造一个新的<code>Iterator</code>实例，其生命周期局限于该for-each loop中。如若<code>Iterator</code>实例的构造函数以及<code>hasNext</code>，<code>next</code>方法调用（连同它们方法体中以<code>this</code>为receiver的方法调用，如<code>checkForComodification()</code>）都被inline，EA会认为该实例没有逃逸，并采取栈分配及scalar replacement。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ArrayList</span>&lt;<span class="title">E</span>&gt; ... </span>&#123;</span><br><span class="line">  ...</span><br><span class="line">  <span class="function"><span class="keyword">public</span> Iterator&lt;E&gt; <span class="title">iterator</span><span class="params">()</span> </span>&#123; <span class="keyword">return</span> <span class="keyword">new</span> Itr(); &#125;</span><br><span class="line">  <span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">Itr</span> <span class="keyword">implements</span> <span class="title">Iterator</span>&lt;<span class="title">E</span>&gt; </span>&#123;</span><br><span class="line">    <span class="keyword">int</span> cursor;       <span class="comment">// index of next element to return</span></span><br><span class="line">    <span class="keyword">int</span> lastRet = -<span class="number">1</span>; <span class="comment">// index of last element returned; -1 if no such</span></span><br><span class="line">    <span class="keyword">int</span> expectedModCount = modCount;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">hasNext</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      <span class="keyword">return</span> cursor != size;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> E <span class="title">next</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      checkForComodification();</span><br><span class="line">      <span class="keyword">int</span> i = cursor;</span><br><span class="line">      <span class="keyword">if</span> (i &gt;= size)</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> NoSuchElementException();</span><br><span class="line">      Object[] elementData = ArrayList.<span class="keyword">this</span>.elementData;</span><br><span class="line">      <span class="keyword">if</span> (i &gt;= elementData.length)</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> ConcurrentModificationException();</span><br><span class="line">      cursor = i + <span class="number">1</span>;</span><br><span class="line">      <span class="keyword">return</span> (E) elementData[lastRet = i];</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">    <span class="function"><span class="keyword">final</span> <span class="keyword">void</span> <span class="title">checkForComodification</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      <span class="keyword">if</span> (modCount != expectedModCount)</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> ConcurrentModificationException();</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>理想情况下，<code>Foo.bar</code>会被优化成如下代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Foo</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">foo</span><span class="params">(ArrayList&lt;String&gt; list)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">int</span> cursor = <span class="number">0</span>;                       <span class="comment">// 可存储于寄存器中</span></span><br><span class="line">    <span class="keyword">int</span> lastRet = -<span class="number">1</span>;                     <span class="comment">// 可存储于寄存器中</span></span><br><span class="line">    <span class="keyword">int</span> expectedModCount = list.modCount; <span class="comment">// 可存储于寄存器中</span></span><br><span class="line">    <span class="keyword">while</span> (cursor &lt; list.size) &#123;</span><br><span class="line">      <span class="keyword">if</span> (list.modCount != expectedModCount)</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> ConcurrentModificationException();</span><br><span class="line">      <span class="keyword">int</span> i = cursor;</span><br><span class="line">      <span class="keyword">if</span> (i &gt;= list.size)</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> NoSuchElementException();</span><br><span class="line">      Object[] elementData = list.elementData;</span><br><span class="line">      <span class="keyword">if</span> (i &gt;= elementData.length)</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> ConcurrentModificationException();</span><br><span class="line">      cursor = i + <span class="number">1</span>;</span><br><span class="line">      String str = (String) elementData[lastRet = i];</span><br><span class="line">      System.out.println(str);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>HotSpot的C2便已应用控制流无关的EA实现scalar replacement。而Graal的<a href="http://www.ssw.uni-linz.ac.at/Research/Papers/Stadler14/Stadler2014-CGO-PEA.pdf" target="_blank" rel="noopener">PEA</a>则在此基础上引入了控制流信息，将所有的堆分配操作虚拟化，并仅在对象确定逃逸的分支materialize。与C2的EA相比，PEA分析效率较低，但能够在对象没有逃逸的分支上实现scalar replacement。如下例所示，如果then-branch的执行概率为1%，那么被PEA优化后的代码在99%的情况下并不会执行堆分配，而C2的EA则100%会执行堆分配。另一个典型的例子是渲染引擎Sunflow — 在运行DaCapo benchmark suite所附带的默认workload时，Graal的PEA判定约27%的堆分配（共占700M）可被虚拟化。该数字远超C2的EA。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// run with -XX:+PrintGC</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Foo</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 放大Foo类实例的内存使用量</span></span><br><span class="line">  <span class="keyword">long</span> placeHolder0;</span><br><span class="line">  <span class="keyword">long</span> placeHolder1;</span><br><span class="line">  <span class="keyword">long</span> placeHolder2;</span><br><span class="line">  <span class="keyword">long</span> placeHolder3;</span><br><span class="line">  <span class="keyword">long</span> placeHolder4;</span><br><span class="line">  <span class="keyword">long</span> placeHolder5;</span><br><span class="line">  <span class="keyword">long</span> placeHolder6;</span><br><span class="line">  <span class="keyword">long</span> placeHolder7;</span><br><span class="line">  <span class="keyword">long</span> placeHolder8;</span><br><span class="line">  <span class="keyword">long</span> placeHolder9;</span><br><span class="line">  <span class="keyword">long</span> placeHoldera;</span><br><span class="line">  <span class="keyword">long</span> placeHolderb;</span><br><span class="line">  <span class="keyword">long</span> placeHolderc;</span><br><span class="line">  <span class="keyword">long</span> placeHolderd;</span><br><span class="line">  <span class="keyword">long</span> placeHoldere;</span><br><span class="line">  <span class="keyword">long</span> placeHolderf;</span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">bar</span><span class="params">(<span class="keyword">boolean</span> condition)</span> </span>&#123;</span><br><span class="line">    Foo foo = <span class="keyword">new</span> Foo(); <span class="comment">// 生命周期短，可被young GC收集</span></span><br><span class="line">    <span class="keyword">if</span> (condition) &#123;</span><br><span class="line">      foo.hashCode(); <span class="comment">// native函数，逃逸</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String[] args)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; Integer.MAX_VALUE; i++) &#123;</span><br><span class="line">      bar(i % <span class="number">100</span> == <span class="number">0</span>);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<hr>
+<h1 id="Using-Graal"><a href="#Using-Graal" class="headerlink" title="Using Graal"></a>Using Graal</h1><p>在Java 10 (Linux/x64, macOS/x64)中，默认情况下HotSpot仍使用C2，但通过向<code>java</code>命令添加<code>-XX:+UnlockExperimentalVMOptions -XX:+UseJVMCICompiler</code>参数便可将C2替换成Graal。</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">$ java -version</span><br><span class="line">java version <span class="string">"10"</span> 2018-03-20</span><br><span class="line">Java(TM) SE Runtime Environment 18.3 (build 10+46)</span><br><span class="line">$ <span class="built_in">cd</span> <span class="variable">$JAVA_HOME</span></span><br><span class="line">$ ll jmods/jdk.internal.vm.*</span><br><span class="line">-rw-r--r--  1 root  wheel   393K Mar  8 03:16 jmods/jdk.internal.vm.ci.jmod</span><br><span class="line">-rw-r--r--  1 root  wheel   5.6M Mar  8 03:16 jmods/jdk.internal.vm.compiler.jmod</span><br><span class="line">-rw-r--r--  1 root  wheel   4.1K Mar  8 03:16 jmods/jdk.internal.vm.compiler.management.jmod</span><br><span class="line">$ java -XX:+UnlockExperimentalVMOptions -XX:+UseJVMCICompiler -XX:+PrintGC -cp /path/to/Foo.class Foo</span><br><span class="line">...</span><br><span class="line">$ java -XX:+PrintGC -cp /path/to/Foo.class Foo</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+<p><a href="http://www.oracle.com/technetwork/oracle-labs/program-languages/overview/index.html" target="_blank" rel="noopener">Oracle Labs GraalVM</a>是由Oracle Labs直接发布的JDK版本。它基于Java 8，并且囊括了Graal enterprise。如果对源代码感兴趣，可直接签出Graal社区版的<a href="https://github.com/oracle/graal" target="_blank" rel="noopener">GitHub repo</a>。源代码的编译需借助<a href="https://github.com/graalvm/mx" target="_blank" rel="noopener"><code>mx</code></a>工具及<a href="http://www.oracle.com/technetwork/oracle-labs/program-languages/downloads/index.html" target="_blank" rel="noopener">labsjdk</a>（注：请下载页面最下方的labsjdk，直接使用GraalVM可能会导致编译问题）。</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># clone mx</span></span><br><span class="line">$ git <span class="built_in">clone</span> https://github.com/graalvm/mx.git</span><br><span class="line">$ <span class="built_in">export</span> PATH=<span class="variable">$PWD</span>/mx:<span class="variable">$PATH</span></span><br><span class="line"><span class="comment"># 下载并将JAVA_HOME指向labsjdk</span></span><br><span class="line">$ <span class="built_in">export</span> JAVA_HOME=/path/to/labsjdk</span><br><span class="line"><span class="comment"># clone Graal</span></span><br><span class="line">$ git <span class="built_in">clone</span> https://github.com/oracle/graal.git</span><br><span class="line">$ <span class="built_in">cd</span> graal/compiler</span><br><span class="line">$ mx build</span><br><span class="line"><span class="comment"># 'mx vm'等同于'java'，具体可利用'mx -v vm'打印完整命令行</span></span><br><span class="line"><span class="comment"># 添加'-XX:+UseJVMCICompiler'启用Graal</span></span><br><span class="line">$ mx vm -XX:+UseJVMCICompiler -XX:+PrintGC -cp /path/to/Foo.class Foo</span><br></pre></td></tr></table></figure>
+<p>在<code>graal/compiler</code>目录下使用<code>mx eclipseinit</code>，<code>mx intellijinit</code>或<code>mx netbeansinit</code>可分别生成Eclipse，IntelliJ或NetBeans的工程配置文件。</p>
+<p><img src="/content/images/2018/03/20/intellij.png" alt="IntelliJ"></p>
+<hr>
+<h1 id="Useful-Links"><a href="#Useful-Links" class="headerlink" title="Useful Links"></a>Useful Links</h1><ul>
+<li><a href="https://github.com/oracle/graal/blob/master/docs/Publications.md" target="_blank" rel="noopener">Graal publications</a></li>
+<li><a href="https://www.youtube.com/watch?v=5_Y3kc--eTI" target="_blank" rel="noopener">Graal tutorial</a>, <a href="http://lafo.ssw.uni-linz.ac.at/papers/2017_PLDI_GraalTutorial.pdf" target="_blank" rel="noopener">slides</a></li>
+<li><a href="http://chrisseaton.com/truffleruby/jokerconf17/" target="_blank" rel="noopener">Chris Seaton: Understanding How Graal Works - a Java JIT Compiler Written in Java</a></li>
+</ul>
+<hr>
+<p>Upcoming: advanced topics in Graal compiler</p>
+<ul>
+<li>Debugging compiled code</li>
+<li>Deoptimization &amp; Java-level assumption — SpeculationLog</li>
+<li>Graal method substitution &amp; Snippet</li>
+<li>Implementing JVM intrinsics</li>
+</ul>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Graal/" rel="tag"># Graal</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/12/25/svm-intro/" rel="next" title="Substrate VM 笔记">
+                <i class="fa fa-chevron-left"></i> Substrate VM 笔记
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+      <div id="disqus_thread">
+        <noscript>
+          Please enable JavaScript to view the
+          <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a>
+        </noscript>
+      </div>
+    </div>
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image"
+                src="/images/avatar.jpg"
+                alt="Yudi Zheng (郑雨迪)" />
+            
+              <p class="site-author-name" itemprop="name">Yudi Zheng (郑雨迪)</p>
+              <p class="site-description motion-element" itemprop="description">Researcher @ Oracle Labs</p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives">
+              
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">3</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          <div class="links-of-author motion-element">
+            
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/mur47x111" target="_blank" title="GitHub">
+                    
+                      <i class="fa fa-fw fa-github"></i>GitHub</a>
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://www.linkedin.com/in/yudi-zheng" target="_blank" title="LinkedIn">
+                    
+                      <i class="fa fa-fw fa-linkedin-square"></i>LinkedIn</a>
+                </span>
+              
+            
+          </div>
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Introduction"><span class="nav-number">1.</span> <span class="nav-text">Introduction</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Tiered-Compilation"><span class="nav-number">2.</span> <span class="nav-text">Tiered Compilation</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Graal-v-s-C2"><span class="nav-number">3.</span> <span class="nav-text">Graal v.s. C2</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Using-Graal"><span class="nav-number">4.</span> <span class="nav-text">Using Graal</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Useful-Links"><span class="nav-number">5.</span> <span class="nav-text">Useful Links</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2018</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yudi Zheng (郑雨迪)</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Pisces</a> v5.1.3</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.3"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.3"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.3"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.3"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.3"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  
+
+    
+      <script id="dsq-count-scr" src="https://yudizheng.disqus.com/count.js" async></script>
+    
+
+    
+      <script type="text/javascript">
+        var disqus_config = function () {
+          this.page.url = 'https://zhengyudi.github.io/2018/03/20/graal-intro/';
+          this.page.identifier = '2018/03/20/graal-intro/';
+          this.page.title = 'Introduction to Graal';
+        };
+        var d = document, s = d.createElement('script');
+        s.src = 'https://yudizheng.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', '' + +new Date());
+        (d.head || d.body).appendChild(s);
+      </script>
+    
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

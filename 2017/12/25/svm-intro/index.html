@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next pisces use-motion" lang="en">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.3" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.3">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.3" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="SVM," />
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Introduction近期开源的Substrate VM（下称SVM）是一个构建在Graal Compiler上的，支持ahead-of-time (AOT) compilation的编译及运行框架。它的设计初衷是提供一个高startup performance，低memory print，以及能无缝衔接C代码（与JNI相较）的runtime，并能完美适配Truffle语言实现。">
+<meta name="keywords" content="SVM">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Substrate VM 笔记">
+<meta property="og:url" content="https://zhengyudi.github.io/2017/12/25/svm-intro/index.html">
+<meta property="og:site_name" content="Yudi Zheng">
+<meta property="og:description" content="Introduction近期开源的Substrate VM（下称SVM）是一个构建在Graal Compiler上的，支持ahead-of-time (AOT) compilation的编译及运行框架。它的设计初衷是提供一个高startup performance，低memory print，以及能无缝衔接C代码（与JNI相较）的runtime，并能完美适配Truffle语言实现。">
+<meta property="og:locale" content="en">
+<meta property="og:updated_time" content="2018-03-20T17:13:08.132Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Substrate VM 笔记">
+<meta name="twitter:description" content="Introduction近期开源的Substrate VM（下称SVM）是一个构建在Graal Compiler上的，支持ahead-of-time (AOT) compilation的编译及运行框架。它的设计初衷是提供一个高startup performance，低memory print，以及能无缝衔接C代码（与JNI相较）的runtime，并能完美适配Truffle语言实现。">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    version: '5.1.3',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhengyudi.github.io/2017/12/25/svm-intro/"/>
+
+
+
+
+
+  <title>Substrate VM 笔记 | Yudi Zheng</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="en">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Yudi Zheng</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br />
+            
+            About
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhengyudi.github.io/2017/12/25/svm-intro/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Yudi Zheng (郑雨迪)">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Yudi Zheng">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Substrate VM 笔记</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-12-25T00:00:00+00:00">
+                2017-12-25
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2017/12/25/svm-intro/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count disqus-comment-count"
+                        data-disqus-identifier="2017/12/25/svm-intro/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Introduction"><a href="#Introduction" class="headerlink" title="Introduction"></a>Introduction</h1><p>近期<a href="https://github.com/graalvm/graal/tree/master/substratevm" target="_blank" rel="noopener">开源</a>的Substrate VM（下称SVM）是一个构建在<a href="http://www.oracle.com/technetwork/oracle-labs/program-languages/" target="_blank" rel="noopener">Graal Compiler</a>上的，支持ahead-of-time (AOT) compilation的编译及运行框架。它的设计初衷是提供一个高startup performance，低memory print，以及能无缝衔接C代码（与JNI相较）的runtime，并能完美适配<a href="https://github.com/graalvm/graal/tree/master/truffle" target="_blank" rel="noopener">Truffle</a>语言实现。</p>
+<a id="more"></a>
+<p>这篇笔记将通过一些例子介绍SVM的实现及对应的源代码。如对SVM的架构，算法，性能等感兴趣，可参考如下链接：</p>
+<ul>
+<li>Overview: <a href="http://www.oracle.com/technetwork/java/jvmls2015-wimmer-2637907.pdf" target="_blank" rel="noopener">http://www.oracle.com/technetwork/java/jvmls2015-wimmer-2637907.pdf</a></li>
+<li>Video: <a href="https://www.youtube.com/watch?v=5BMHIeMXTqA" target="_blank" rel="noopener">https://www.youtube.com/watch?v=5BMHIeMXTqA</a></li>
+<li>Sources: <a href="https://github.com/graalvm/graal/tree/master/substratevm" target="_blank" rel="noopener">https://github.com/graalvm/graal/tree/master/substratevm</a></li>
+<li>GraalVM: <a href="http://www.oracle.com/technetwork/oracle-labs/program-languages/" target="_blank" rel="noopener">http://www.oracle.com/technetwork/oracle-labs/program-languages/</a></li>
+<li>Graal tutorial: <a href="http://lafo.ssw.uni-linz.ac.at/papers/2017_PLDI_GraalTutorial.pdf" target="_blank" rel="noopener">http://lafo.ssw.uni-linz.ac.at/papers/2017_PLDI_GraalTutorial.pdf</a></li>
+<li>Publications: <a href="https://github.com/graalvm/graal/blob/master/docs/Publications.md" target="_blank" rel="noopener">https://github.com/graalvm/graal/blob/master/docs/Publications.md</a></li>
+</ul>
+<hr>
+<h1 id="Hello-World"><a href="#Hello-World" class="headerlink" title="Hello World"></a>Hello World</h1><p>从执行时间上来看，SVM可划分为两部分：native image generator及SVM runtime。前者可看成一个普通的Java程序，用以生成可执行文件或动态链接库；后者是一个精简的runtime（与HotSpot相对应），包含异常处理，同步，线程管理，内存管理，Java Native Interface（JNI）等组件。SVM要求所运行的程序是封闭的，即不可动态加载其他类库等。这部分封闭的程序会被native image generator编译，并与SVM runtime相链接，继而形成一个自包含的二进制文件。</p>
+<p>我们在Oracle Technology Network（OTN）上迭代发布的<a href="http://www.oracle.com/technetwork/oracle-labs/program-languages/downloads/index.html" target="_blank" rel="noopener">GraalVM</a>版本，其中便包含native image generator（<code>native-image</code>）。GraalVM附载的语言实现，如<code>js</code>，<code>ruby</code>，<code>python</code>，及<code>lli</code> （LLVM bitcode interpreter），乃至<code>native-image</code>本身，均是由该工具产生。下面我们将借助这一工具编译一个简单的Hello World程序：</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">export</span> GRAALVM_HOME=/PATH/TO/GRAALVM/HOME</span><br><span class="line">$ <span class="built_in">echo</span> <span class="string">'// HelloWorld.java</span></span><br><span class="line"><span class="string">public class HelloWorld &#123;</span></span><br><span class="line"><span class="string">    public static void main(String[] args) &#123;</span></span><br><span class="line"><span class="string">        System.out.println("Hello World");</span></span><br><span class="line"><span class="string">    &#125;</span></span><br><span class="line"><span class="string">&#125;'</span> &gt; HelloWorld.java</span><br><span class="line">$ javac HelloWorld.java</span><br><span class="line">$ <span class="variable">$GRAALVM_HOME</span>/bin/native-image -H:Class=HelloWorld -H:Name=helloworld</span><br><span class="line">  classlist:   1,429.11 ms</span><br><span class="line">      (<span class="built_in">cap</span>):   2,010.48 ms</span><br><span class="line">      setup:   3,088.00 ms</span><br><span class="line"> (typeflow):   3,809.79 ms</span><br><span class="line">  (objects):   2,962.38 ms</span><br><span class="line"> (features):      32.76 ms</span><br><span class="line">   analysis:   6,944.22 ms</span><br><span class="line">   universe:     410.09 ms</span><br><span class="line">    (parse):   1,072.11 ms</span><br><span class="line">   (inline):     978.95 ms</span><br><span class="line">  (compile):   9,421.44 ms</span><br><span class="line">    compile:  12,207.86 ms</span><br><span class="line">      image:   3,226.87 ms</span><br><span class="line">      write:     797.77 ms</span><br><span class="line">    [total]:  28,188.48 ms</span><br></pre></td></tr></table></figure>
+<p><code>native-image</code>工具分为多个步骤，其中最重要的是<a href="https://github.com/graalvm/graal/blob/2c999219bcdc82217197394a474585609713ecc1/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/NativeImageGenerator.java#L603" target="_blank" rel="noopener">pointsto analysis</a>及<a href="https://github.com/graalvm/graal/blob/2c999219bcdc82217197394a474585609713ecc1/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/NativeImageGenerator.java#L780" target="_blank" rel="noopener">AOT compilation</a>。上述指令最终将在当前目录下生成指定名称（<code>-H:Name=</code>）的可执行文件，其入口为<a href="https://github.com/graalvm/graal/blob/2c999219bcdc82217197394a474585609713ecc1/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/JavaMainWrapper.java#L134" target="_blank" rel="noopener"><code>JavaMainWrapper.run</code></a>。严格意义上讲入口是调用该方法的桩程序 —— SVM会为所有被<a href="https://github.com/graalvm/graal/blob/2c999219bcdc82217197394a474585609713ecc1/sdk/src/org.graalvm.nativeimage/src/org/graalvm/nativeimage/c/function/CEntryPoint.java#L63" target="_blank" rel="noopener"><code>@CEntryPoint</code></a>注解的方法生成桩程序，完成由C空间调用至Java空间的准备工作。在<code>JavaMainWrapper.run</code>方法<a href="https://github.com/graalvm/graal/blob/2c999219bcdc82217197394a474585609713ecc1/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/JavaMainWrapper.java#L155" target="_blank" rel="noopener">调用</a>所指定主类（<code>-H:Class=</code>）的主方法之前并没有出现类似HotSpot中冗杂的初始化操作。实际上，<code>native-image</code>会维护一个<a href="https://github.com/graalvm/graal/blob/2c999219bcdc82217197394a474585609713ecc1/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/image/NativeImageHeap.java#L77" target="_blank" rel="noopener"><code>NativeImageHeap</code></a>（可看成在运行目标程序前Java堆的一个快照），并在生成二进制文件时直接烧录至其<code>__DATA</code>段中。因此，相较于HotSpot而言SVM运行Java程序的memory footprint更小。</p>
+<p><code>native-image</code>工具耗时较长，这是由于其实际工作是由一个运行在HotSpot上的子程序完成，因而受制于其启动性能较差的缺陷（解释执行）。之所以这部分代码没有被AOT编译，是因为native image generator依赖于HotSpot的类加载机制来载入需要编译的Java类。</p>
+<p>编译而成的二进制文件的<code>__TEXT</code>段包含<code>HelloWorld.main</code>，JDK中所有可能被调用的方法，以及SVM runtime相应的代码。这部分runtime代码提供了简介中提及的各类runtime组件，但代价是生成的二进制文件大小远超于等价的helloworld.c编译而成的二进制文件：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">// macOS-specific</span><br><span class="line">$ size -m -x helloworld</span><br><span class="line">Segment __PAGEZERO: 0x100000000</span><br><span class="line">Segment __TEXT: 0x1f2000</span><br><span class="line">	Section __stubs: 0xc</span><br><span class="line">	Section __stub_helper: 0x24</span><br><span class="line">	Section __text: 0x1f0014</span><br><span class="line">	Section __const: 0x7e8</span><br><span class="line">	Section __unwind_info: 0xa4</span><br><span class="line">	total 0x1f08d0</span><br><span class="line">Segment __DATA: 0x272000</span><br><span class="line">	Section __nl_symbol_ptr: 0x10</span><br><span class="line">	Section __got: 0x8</span><br><span class="line">	Section __la_symbol_ptr: 0x10</span><br><span class="line">	Section __const: 0x1f5aa0</span><br><span class="line">	Section __data: 0x7a188</span><br><span class="line">	total 0x26fc50</span><br><span class="line">Segment __LINKEDIT: 0x3d7d4</span><br><span class="line">total 0x1004a17d4</span><br><span class="line">$ size -m -x helloworldc</span><br><span class="line">Segment __PAGEZERO: 0x100000000</span><br><span class="line">Segment __TEXT: 0x1000</span><br><span class="line">	Section __text: 0x2a</span><br><span class="line">	Section __stubs: 0x6</span><br><span class="line">	Section __stub_helper: 0x1a</span><br><span class="line">	Section __cstring: 0xd</span><br><span class="line">	Section __unwind_info: 0x48</span><br><span class="line">	total 0x9f</span><br><span class="line">Segment __DATA: 0x1000</span><br><span class="line">	Section __nl_symbol_ptr: 0x10</span><br><span class="line">	Section __la_symbol_ptr: 0x8</span><br><span class="line">	total 0x18</span><br><span class="line">Segment __LINKEDIT: 0x1000</span><br><span class="line">total 0x100003000</span><br></pre></td></tr></table></figure>
+<p>通过追加<code>-H:Debug=</code>参数，<code>native-image</code>生成的二进制文件将包含调试信息，有助于我们了解被链接的所有Java方法（下面罗列调用<code>JavaMainWrapper.run</code>的桩程序的多个别名）：</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="variable">$GRAALVM_HOME</span>/bin/native-image -H:Class=HelloWorld -H:Name=helloworld -H:Debug=1</span><br><span class="line">$ objdump -t helloworld</span><br><span class="line">...</span><br><span class="line">0000000100006d90 g       __TEXT,__text  _com_002eoracle_002esvm_002ecore_002eJavaMainWrapper_002erun_0028ILorg_002egraalvm_002enativeimage_002ec_002etype_002eCCharPointerPointer_003b_0029</span><br><span class="line">0000000100006d90 g       __TEXT,__text  _com_002eoracle_002esvm_002ecore_002ecode_002eCEntryPointCallStubs_002ecom_005f002eoracle_005f002esvm_005f002ecore_005f002eJavaMainWrapper_005f002erun_005f0028int_005f002corg_005f002egraalvm_005f002enativeimage_005f002ec_005f002etype_005f002eCCharPointerPointer_005f0029_0028int_002corg_002egraalvm_002enativeimage_002ec_002etype_002eCCharPointerPointer_0029</span><br><span class="line">...</span><br><span class="line">0000000100006d90 g       __TEXT,__text  _main</span><br><span class="line">...</span><br><span class="line">$ objdump -t helloworld | grep <span class="string">"_java."</span> | wc -l</span><br><span class="line">    1875</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+<p>除了提供主函数生成可执行文件，我们还可以借助<code>-H:Kind=SHARED_LIBRARY</code>及<code>@CEntryPoint</code>来生成动态链接库，如下所示：</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">echo</span> <span class="string">'// HelloWorld.java</span></span><br><span class="line"><span class="string">import org.graalvm.nativeimage.c.function.CEntryPoint;</span></span><br><span class="line"><span class="string">import org.graalvm.nativeimage.IsolateThread;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">public class HelloWorld &#123;</span></span><br><span class="line"><span class="string">    @CEntryPoint</span></span><br><span class="line"><span class="string">    public static void foo(IsolateThread thread) &#123;</span></span><br><span class="line"><span class="string">        System.out.println("Hello World");</span></span><br><span class="line"><span class="string">    &#125;</span></span><br><span class="line"><span class="string">&#125;'</span> &gt; HelloWorld.java</span><br><span class="line">$ javac -cp <span class="variable">$GRAALVM_HOME</span>/jre/lib/boot/graal-sdk.jar HelloWorld.java</span><br><span class="line">$ <span class="variable">$GRAALVM_HOME</span>/bin/native-image -H:Kind=SHARED_LIBRARY -H:Name=helloworld</span><br></pre></td></tr></table></figure>
+<p>上述指令将在当前目录下生成两个文件：动态链接库<code>helloworld.dylib</code>及对应的头文件<code>helloworld.h</code>。后者包含生成的入口函数及一系列用以操作SVM线程的API（暂无文档）。这两者的使用方式和常规动态链接库一致：</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">echo</span> <span class="string">'// helloworld.c</span></span><br><span class="line"><span class="string">#include "helloworld.h"</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">int main() &#123;</span></span><br><span class="line"><span class="string">    graal_isolate_t* isolate;</span></span><br><span class="line"><span class="string">    graal_create_isolate(0, &amp;isolate);</span></span><br><span class="line"><span class="string">    HelloWorld_002efoo_0028Lorg_002egraalvm_002enativeimage_002eIsolateThread_003b_0029(graal_current_thread(isolate));</span></span><br><span class="line"><span class="string">    return 0;</span></span><br><span class="line"><span class="string">&#125;'</span> &gt; helloworld.c</span><br><span class="line">$ gcc -o helloworldc2svm helloworld.c helloworld.dylib</span><br><span class="line">$ ./helloworldc2svm</span><br><span class="line">Hello World</span><br></pre></td></tr></table></figure>
+<hr>
+<h1 id="Build-from-sources"><a href="#Build-from-sources" class="headerlink" title="Build from sources"></a>Build from sources</h1><p>SVM源代码的编译需借助<a href="https://github.com/graalvm/mx" target="_blank" rel="noopener"><code>mx</code></a>工具及支持<code>JVMCI</code>的JDK，如<a href="http://www.oracle.com/technetwork/oracle-labs/program-languages/downloads/index.html" target="_blank" rel="noopener">labsjdk</a>（注：请下载页面最下方的labsjdk，直接使用GraalVM可能会导致共有类的编译问题）。下载完成后将<code>JAVA_HOME</code>指向labsjdk路径。</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">$ git <span class="built_in">clone</span> https://github.com/graalvm/graal.git</span><br><span class="line">$ <span class="built_in">cd</span> graal/substratevm</span><br><span class="line">$ mx build</span><br><span class="line">$ mkdir svmbuild</span><br><span class="line">$ <span class="built_in">echo</span> <span class="string">'// HelloWorld.java</span></span><br><span class="line"><span class="string">public class HelloWorld &#123;</span></span><br><span class="line"><span class="string">    public static void main(String[] args) &#123;</span></span><br><span class="line"><span class="string">        System.out.println("Hello World");</span></span><br><span class="line"><span class="string">    &#125;</span></span><br><span class="line"><span class="string">&#125;'</span> &gt; svmbuild/HelloWorld.java</span><br><span class="line">$ javac svmbuild/HelloWorld.java</span><br><span class="line">$ mx image -cp <span class="variable">$PWD</span>/svmbuild -H:Class=HelloWorld -H:Name=helloworld</span><br></pre></td></tr></table></figure>
+<p>指令<code>mx image</code>除自动将目标文件写入<code>svmbuild</code>目录外等同于<code>native-image</code>工具，例如同样需耗费较长的时间。SVM提供了另一种非缺省的解决方案，即让native image generator以server的形式运行（<code>mx image_server_start</code>），接受请求（<code>mx image -server ...</code>）并返回编译结果。充分预热的native image generator，可将编译效率提升至三倍以上。</p>
+<p>对Truffle语言实现而言，由于运行需加载的Java类仅限于语言解释器及其依赖库，因此可以被SVM完美支持。下述指令将使用SVM编译ruby语言实现<a href="https://github.com/graalvm/truffleruby" target="_blank" rel="noopener">TruffleRuby</a>：</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cd</span> /PATH/TO/GRAAL/REPO/..</span><br><span class="line">$ git <span class="built_in">clone</span> https://github.com/graalvm/truffleruby.git</span><br><span class="line">$ <span class="built_in">cd</span> truffleruby</span><br><span class="line">$ mx build</span><br><span class="line">$ <span class="built_in">cd</span> ../graal/substratevm</span><br><span class="line">$ mx image -ruby</span><br><span class="line">$ svmbuild/ruby -Xhome=../../truffleruby</span><br></pre></td></tr></table></figure>
+<p>编译TruffleRuby的指令较为复杂，因此我们提供了<code>mx image -ruby</code>的封装。它将在包含<code>graal</code>的git repo的路径下寻找<code>truffleruby</code>的repo，编译其通过<code>mx build</code>生成的jar包。</p>
+<hr>
+<h1 id="SVM-Internals"><a href="#SVM-Internals" class="headerlink" title="SVM Internals"></a>SVM Internals</h1><p>前段时间碰到一个很难复现的bug，极小概率在<code>graal-js</code>试图编译js代码时触发。经调试得知：1. 仅在native image中复现；2. 触发原因是<code>System.identityHashCode(Object)</code>对同一对象返回不同的值。在SVM中同一段代码可能被两个不同的runtime执行，即在生成二进制文件时由HotSpot运行（hosted mode），或在SVM runtime中运行。当时我推测<code>NativeImageHeap</code>中缓存了某些对象的identityHashCode（例如在<code>HashMap</code>中），而在SVM runtime中再对这些对象求identityHashCode则会得到不同的结果。但这一猜想被SVM组的开发者否定了，因为SVM已经有机制预防这种哈希值不一致的情况出现。</p>
+<p>SVM无法直接使用HotSpot的runtime代码，因此所有的native方法皆需有对应的实现。SVM的解决方案是在Java层提供替代，并在编译过程中将编译内容替换掉。这些替代方法使用<a href="https://github.com/graalvm/graal/blob/2c999219bcdc82217197394a474585609713ecc1/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/annotate/TargetClass.java#L70" target="_blank" rel="noopener"><code>@TargetClass</code></a>和<a href="https://github.com/graalvm/graal/blob/2c999219bcdc82217197394a474585609713ecc1/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/annotate/Substitute.java#L53" target="_blank" rel="noopener"><code>@Substitute</code></a>注解，如<code>System.identityHashCode(Object)</code>的替代：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 修复前</span></span><br><span class="line"><span class="meta">@TargetClass</span>(java.lang.System.class)</span><br><span class="line"><span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">Target_java_lang_System</span> </span>&#123;</span><br><span class="line">  ...</span><br><span class="line">  <span class="meta">@Substitute</span></span><br><span class="line">  <span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">int</span> <span class="title">identityHashCode</span><span class="params">(Object obj)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (obj == <span class="keyword">null</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    DynamicHub hub = KnownIntrinsics.readHub(obj);</span><br><span class="line">    <span class="keyword">int</span> hashCodeOffset = hub.getHashCodeOffset();</span><br><span class="line">    <span class="keyword">if</span> (hashCodeOffset == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">throw</span> VMError.shouldNotReachHere(<span class="string">"identityHashCode called on illegal object"</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    UnsignedWord hashCodeOffsetWord = WordFactory.unsigned(hashCodeOffset);</span><br><span class="line">    <span class="keyword">int</span> hashCode = ObjectAccess.readInt(obj, hashCodeOffsetWord);</span><br><span class="line">    <span class="keyword">if</span> (hashCode == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="comment">// On the first invocation for an object create a new hash code.</span></span><br><span class="line">        hashCode = ImageSingletons.lookup(IdentityHashCodeSupport.class).generateHashCode();</span><br><span class="line">        ObjectAccess.writeInt(obj, hashCodeOffsetWord, hashCode);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> hashCode;</span><br><span class="line">  &#125;</span><br><span class="line">  ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>该替代与<a href="http://hg.openjdk.java.net/graal/graal-jvmci-8/file/8128b98d4736/src/share/vm/runtime/synchronizer.cpp#l634" target="_blank" rel="noopener">HotSpot的实现</a>非常类似，即从每个对象的特定偏移量读取其identityHashCode，如若不存在则随机生成一个。这段代码的问题在于没有对hashcode的写入操作加锁，因此使用CAS指令即可<a href="https://github.com/graalvm/graal/blob/2c999219bcdc82217197394a474585609713ecc1/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/JavaLangSubstitutions.java#L514" target="_blank" rel="noopener">修复</a>。</p>
+<p>通过类似的机制native image generator可识别SVM所不支持的组件（类，字段，构造器，或方法）。这些组件需要由<a href="https://github.com/graalvm/graal/blob/2c999219bcdc82217197394a474585609713ecc1/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/annotate/Delete.java#L38" target="_blank" rel="noopener"><code>@Delete</code></a>注解，或者通过<code>@Substitute</code>注解Java类并且不提供某些方法的替代来实现隐式标记。静态分析会从一系列<a href="https://github.com/graalvm/graal/blob/2c999219bcdc82217197394a474585609713ecc1/substratevm/src/com.oracle.graal.pointsto/src/com/oracle/graal/pointsto/BigBang.java#L345" target="_blank" rel="noopener">root method</a>出发，保守地探索所有可被调用到的方法。如若探索到任一不被支持的功能，它将抛出<code>UnsupportedFeatureException</code>。由于<code>javac</code>的annotation processor依赖于类加载机制，因此静态分析会探测到对<code>java.lang.ClassLoader.&lt;init&gt;</code>的调用，由这一<a href="https://github.com/graalvm/graal/blob/2c999219bcdc82217197394a474585609713ecc1/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/JavaLangSubstitutions.java#L244" target="_blank" rel="noopener">替代</a>隐式声明。</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">$ mx image -cp <span class="variable">$JAVA_HOME</span>/lib/tools.jar -H:Class=com.sun.tools.javac.Main -H:Name=javac -H:IncludeResourceBundles=com.sun.tools.javac.resources.compiler,com.sun.tools.javac.resources.javac,com.sun.tools.javac.resources.version</span><br><span class="line">classlist:   3,167.32 ms</span><br><span class="line">    (<span class="built_in">cap</span>):   1,709.58 ms</span><br><span class="line">    setup:   3,289.98 ms</span><br><span class="line"> analysis:  12,421.88 ms</span><br><span class="line">error: unsupported features <span class="keyword">in</span> 3 methods</span><br><span class="line">Detailed message:</span><br><span class="line">Error: Bytecode parsing error: Unsupported constructor java.lang.ClassLoader.&lt;init&gt;(ClassLoader) is reachable: The declaring class of this element has been substituted, but this element is not present <span class="keyword">in</span> the substitution class</span><br><span class="line">To diagnose the issue, you can add the option -H:+ReportUnsupportedElementsAtRuntime. The unsupported element is <span class="keyword">then</span> reported at run time when it is accessed the first time.</span><br><span class="line">Trace:</span><br><span class="line">        at parsing java.security.SecureClassLoader.&lt;init&gt;(SecureClassLoader.java:76)</span><br><span class="line">Call path from entry point to java.security.SecureClassLoader.&lt;init&gt;(ClassLoader):</span><br><span class="line">        at java.security.SecureClassLoader.&lt;init&gt;(SecureClassLoader.java:76)</span><br><span class="line">        at java.net.URLClassLoader.&lt;init&gt;(URLClassLoader.java:100)</span><br><span class="line">        ...</span><br></pre></td></tr></table></figure>
+<p>通过追加<code>-H:+ReportUnsupportedElementsAtRuntime</code>参数，native image generator会将此类异常推延至运行时，使编译而成的<code>javac</code>支持不使用annotation processor的Java文件：</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">$ mx image -H:+ReportUnsupportedElementsAtRuntime -cp <span class="variable">$JAVA_HOME</span>/lib/tools.jar -H:Class=com.sun.tools.javac.Main -H:Name=javac -H:IncludeResourceBundles=com.sun.tools.javac.resources.compiler,com.sun.tools.javac.resources.javac,com.sun.tools.javac.resources.version</span><br><span class="line">   classlist:   3,442.31 ms</span><br><span class="line">       (<span class="built_in">cap</span>):   1,825.62 ms</span><br><span class="line">       setup:   3,298.60 ms</span><br><span class="line">  (typeflow):   7,639.63 ms</span><br><span class="line">   (objects):   4,105.75 ms</span><br><span class="line">  (features):     139.78 ms</span><br><span class="line">    analysis:  12,633.02 ms</span><br><span class="line">14 method(s) included <span class="keyword">for</span> runtime compilation</span><br><span class="line">    universe:     784.26 ms</span><br><span class="line">     (parse):   2,098.70 ms</span><br><span class="line">   (compile):  11,272.73 ms</span><br><span class="line">     compile:  14,692.47 ms</span><br><span class="line">       image:   3,576.05 ms</span><br><span class="line">       write:   1,870.27 ms</span><br><span class="line">     [total]:  40,407.83 ms</span><br><span class="line">$ <span class="built_in">echo</span> <span class="string">'// HelloWorld.java</span></span><br><span class="line"><span class="string">public class HelloWorld &#123;</span></span><br><span class="line"><span class="string">    public static void main(String[] args) &#123;</span></span><br><span class="line"><span class="string">        System.out.println("Hello World");</span></span><br><span class="line"><span class="string">    &#125;</span></span><br><span class="line"><span class="string">&#125;'</span> &gt; HelloWorld.java</span><br><span class="line">$ time svmbuild/javac -proc:none -bootclasspath <span class="variable">$JAVA_HOME</span>/jre/lib/rt.jar HelloWorld.java</span><br><span class="line">        0.05 real         0.02 user         0.01 sys</span><br><span class="line">$ time javac HelloWorld.java</span><br><span class="line">        0.59 real         1.09 user         0.11 sys</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/SVM/" rel="tag"># SVM</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/05/17/ecoop-2017/" rel="next" title="[ECOOP '17] An Empirical Study on Deoptimization in the Graal Compiler">
+                <i class="fa fa-chevron-left"></i> [ECOOP '17] An Empirical Study on Deoptimization in the Graal Compiler
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2018/03/20/graal-intro/" rel="prev" title="Introduction to Graal">
+                Introduction to Graal <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+      <div id="disqus_thread">
+        <noscript>
+          Please enable JavaScript to view the
+          <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a>
+        </noscript>
+      </div>
+    </div>
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image"
+                src="/images/avatar.jpg"
+                alt="Yudi Zheng (郑雨迪)" />
+            
+              <p class="site-author-name" itemprop="name">Yudi Zheng (郑雨迪)</p>
+              <p class="site-description motion-element" itemprop="description">Researcher @ Oracle Labs</p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives">
+              
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">3</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          <div class="links-of-author motion-element">
+            
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/mur47x111" target="_blank" title="GitHub">
+                    
+                      <i class="fa fa-fw fa-github"></i>GitHub</a>
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://www.linkedin.com/in/yudi-zheng" target="_blank" title="LinkedIn">
+                    
+                      <i class="fa fa-fw fa-linkedin-square"></i>LinkedIn</a>
+                </span>
+              
+            
+          </div>
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Introduction"><span class="nav-number">1.</span> <span class="nav-text">Introduction</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Hello-World"><span class="nav-number">2.</span> <span class="nav-text">Hello World</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Build-from-sources"><span class="nav-number">3.</span> <span class="nav-text">Build from sources</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#SVM-Internals"><span class="nav-number">4.</span> <span class="nav-text">SVM Internals</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2018</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yudi Zheng (郑雨迪)</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Pisces</a> v5.1.3</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.3"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.3"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.3"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.3"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.3"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  
+
+    
+      <script id="dsq-count-scr" src="https://yudizheng.disqus.com/count.js" async></script>
+    
+
+    
+      <script type="text/javascript">
+        var disqus_config = function () {
+          this.page.url = 'https://zhengyudi.github.io/2017/12/25/svm-intro/';
+          this.page.identifier = '2017/12/25/svm-intro/';
+          this.page.title = 'Substrate VM 笔记';
+        };
+        var d = document, s = d.createElement('script');
+        s.src = 'https://yudizheng.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', '' + +new Date());
+        (d.head || d.body).appendChild(s);
+      </script>
+    
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
